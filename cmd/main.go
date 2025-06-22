@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"tidebot/pkg/users/repositories"
+	"tidebot/pkg/users/services"
 	"tidebot/pkg/whatsapp"
 
 	"github.com/labstack/echo/v4"
@@ -67,10 +68,15 @@ func main() {
 		e.Logger.Fatalf("Faied to run migrations: %v\n", err)
 	}
 
+	// Initialize repositories
 	userRepository := repositories.NewUserRepository(db, e.Logger)
-	_ = userRepository // Repository is now available for use
 
-	whatsapp.RegisterWhatsappWebhook(e)
+	// Initialize services
+	userService := services.NewUserService(userRepository, db, e.Logger)
+	whatsappService := whatsapp.NewWhatsAppService(userService, e.Logger)
+
+	// Register webhook with service dependency
+	whatsapp.RegisterWhatsappWebhook(e, whatsappService)
 
 	e.Logger.Fatal(e.Start(":42069"))
 }

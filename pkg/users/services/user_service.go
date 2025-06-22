@@ -1,0 +1,68 @@
+package services
+
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+	"tidebot/pkg/users/models"
+	"tidebot/pkg/users/repositories"
+
+	"github.com/labstack/echo/v4"
+)
+
+type UserService interface {
+	SaveUser(phoneNumber string, name *string) error
+}
+
+type userServiceImpl struct {
+	userRepository repositories.UserRepository
+	db             *sql.DB
+	log            echo.Logger
+}
+
+func NewUserService(userRepository repositories.UserRepository, db *sql.DB, log echo.Logger) UserService {
+	return &userServiceImpl{
+		userRepository: userRepository,
+		db:             db,
+		log:            log,
+	}
+}
+
+func (s *userServiceImpl) SaveUser(phoneNumber string, name *string) error {
+	s.log.Debugf("Attempting to save user - phone: %s, name: %v", phoneNumber, name)
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	existingUser, err := s.userRepository.GetByPhoneNumber(phoneNumber)
+	if err == nil {
+		s.log.Infof("User already exists with phone number '%s' (ID: %d), skipping save", phoneNumber, existingUser.ID)
+		tx.Commit()
+		return nil
+	}
+
+	if !strings.Contains(err.Error(), "user not found") {
+		return fmt.Errorf("failed to check if user exists: %w", err)
+	}
+
+	writeModel := models.UserWriteModel{
+		PhoneNumber: phoneNumber,
+		Name:        name,
+	}
+
+	savedUser, err := s.userRepository.Save(writeModel)
+	if err != nil {
+		return fmt.Errorf("failed to save new user: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	s.log.Infof("Successfully saved new user - ID: %d, phone: %s", savedUser.ID, savedUser.PhoneNumber)
+	return nil
+}
+
