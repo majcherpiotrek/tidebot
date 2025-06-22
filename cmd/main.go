@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"tidebot/pkg/environment"
+	"tidebot/pkg/jobs"
 	"tidebot/pkg/users/repositories"
 	"tidebot/pkg/users/services"
 	"tidebot/pkg/whatsapp"
+	"tidebot/pkg/worldtides"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -25,13 +27,13 @@ var (
 	TURSO_DB_URL         = ""
 	TURSO_DB_AUTH_TOKEN  = ""
 	TWILIO_WHATSAPP_FROM = ""
+	WORLDTIDES_API_KEY   = ""
 )
 
 func main() {
 	e := echo.New()
 
 	e.Use(middleware.Logger())
-	e.Logger.SetLevel(log.DEBUG)
 	e.Static("/assets", "assets")
 
 	envFlagValue := flag.String("env", "", fmt.Sprintf("Environment ('%s' or '%s')", environment.EnvDevelopment, environment.EnvProduction))
@@ -48,6 +50,14 @@ func main() {
 		env = environment.EnvDevelopment
 	}
 
+	// Set log level based on environment
+	if env == environment.EnvDevelopment {
+		e.Logger.SetLevel(log.DEBUG)
+		e.Logger.Debug("Debug logging enabled for development environment")
+	} else {
+		e.Logger.SetLevel(log.INFO)
+	}
+
 	err = env.LoadEnv()
 	if err != nil {
 		e.Logger.Fatalf("%v", err)
@@ -57,6 +67,7 @@ func main() {
 	TURSO_DB_URL = os.Getenv("TURSO_DB_URL")
 	TURSO_DB_AUTH_TOKEN = os.Getenv("TURSO_DB_AUTH_TOKEN")
 	TWILIO_WHATSAPP_FROM = os.Getenv("TWILIO_WHATSAPP_FROM")
+	WORLDTIDES_API_KEY = os.Getenv("WORLDTIDES_API_KEY")
 
 	db, err := sql.Open("libsql", fmt.Sprintf("%s?authToken=%s", TURSO_DB_URL, TURSO_DB_AUTH_TOKEN))
 	if err != nil {
@@ -72,12 +83,21 @@ func main() {
 	// Initialize repositories
 	userRepository := repositories.NewUserRepository(db, e.Logger)
 
+	// Initialize clients
+	whatsappClient := whatsapp.NewWhatsappClient(TWILIO_WHATSAPP_FROM, e.Logger)
+	worldTidesClient := worldtides.NewWorldTidesClient(WORLDTIDES_API_KEY, e.Logger)
+
 	// Initialize services
 	userService := services.NewUserService(userRepository, db, e.Logger)
-	whatsappService := whatsapp.NewWhatsAppService(userService, e.Logger)
+	whatsappService := whatsapp.NewWhatsAppService(userService, whatsappClient, e.Logger)
+	jobsService := jobs.NewJobsService(userService, whatsappService, worldTidesClient, e.Logger)
 
-	// Register webhook with service dependency
+	// Initialize controllers
+	jobsController := jobs.NewJobsController(jobsService, e.Logger)
+
+	// Register routes
 	whatsapp.RegisterWhatsappWebhook(e, whatsappService)
+	jobsController.RegisterRoutes(e)
 
 	e.Logger.Fatal(e.Start(":42069"))
 }

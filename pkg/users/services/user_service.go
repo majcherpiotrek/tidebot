@@ -12,6 +12,7 @@ import (
 
 type UserService interface {
 	SaveUser(phoneNumber string, name *string) error
+	GetAllUsers() ([]models.User, error)
 }
 
 type userServiceImpl struct {
@@ -64,5 +65,17 @@ func (s *userServiceImpl) SaveUser(phoneNumber string, name *string) error {
 
 	s.log.Infof("Successfully saved new user - ID: %d, phone: %s", savedUser.ID, savedUser.PhoneNumber)
 	return nil
+}
+
+func (s *userServiceImpl) GetAllUsers() ([]models.User, error) {
+	s.log.Debugf("Getting all users")
+
+	users, err := s.userRepository.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all users: %w", err)
+	}
+
+	s.log.Debugf("Successfully retrieved %d users", len(users))
+	return users, nil
 }
 
