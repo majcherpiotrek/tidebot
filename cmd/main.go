@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"tidebot/pkg/environment"
 	"tidebot/pkg/users/repositories"
 	"tidebot/pkg/users/services"
 	"tidebot/pkg/whatsapp"
@@ -33,18 +34,18 @@ func main() {
 	e.Logger.SetLevel(log.DEBUG)
 	e.Static("/assets", "assets")
 
-	envFlagValue := flag.String("env", "", fmt.Sprintf("Environment ('%s' or '%s')", EnvDevelopment, EnvProduction))
+	envFlagValue := flag.String("env", "", fmt.Sprintf("Environment ('%s' or '%s')", environment.EnvDevelopment, environment.EnvProduction))
 	flag.Parse()
 
-	env, err := ParseEnvironment(*envFlagValue)
+	env, err := environment.ParseEnvironment(*envFlagValue)
 
 	if err != nil {
 		envValue := os.Getenv("GO_ENV")
-		env, err = ParseEnvironment(envValue)
+		env, err = environment.ParseEnvironment(envValue)
 	}
 
 	if err != nil {
-		env = EnvDevelopment
+		env = environment.EnvDevelopment
 	}
 
 	err = env.LoadEnv()
