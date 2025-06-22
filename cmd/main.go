@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"tidebot/pkg/users/repositories"
 	"tidebot/pkg/whatsapp"
 
 	"github.com/labstack/echo/v4"
@@ -66,9 +67,10 @@ func main() {
 		e.Logger.Fatalf("Faied to run migrations: %v\n", err)
 	}
 
-	whatsappClient := whatsapp.NewWhatsappClient(TWILIO_WHATSAPP_FROM, e.Logger)
+	userRepository := repositories.NewUserRepository(db, e.Logger)
+	_ = userRepository // Repository is now available for use
 
-	whatsappClient.SendMessage("Hello from code", "+34608368242")
+	whatsapp.RegisterWhatsappWebhook(e)
 
 	e.Logger.Fatal(e.Start(":42069"))
 }
