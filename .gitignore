@@ -1,0 +1,15 @@
+tmp/
+
+*_templ.go
+
+/assets/js
+/assets/styles.css
+.env
+
+.swp
+
+node_modules/
+
+.env.development
+.env.local
+.env.production
