@@ -1,0 +1,7 @@
+package whatsapp
+
+templ WhatsappQrCode(phoneNumber string, message string) {
+	<canvas id="whatsapp-qr-code"></canvas>
+	@templ.JSONScript("whatsappQrCodeProps", map[string]string{"phoneNumber": phoneNumber, "message": message})
+	<script src="/assets/js/pkg/whatsapp/qrcode.js"></script>
+}

@@ -1,5 +1,11 @@
 package home
 
+import (
+	"tidebot/pkg/whatsapp"
+)
+
 templ HomePage() {
-	<div>Hello from home</div>
+	<div>
+		@whatsapp.WhatsappQrCode("+14155238886", "overpowered")
+	</div>
 }
