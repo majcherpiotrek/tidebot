@@ -86,4 +86,4 @@ Single `users` table with:
 - TypeScript uses strict mode with ES6 target
 - Static assets served from `/assets` route
 - Database migrations run automatically on application start
-- Phone numbers stored with `whatsapp:` prefix for Twilio compatibility
+- Phone numbers stored clean in database; `whatsapp:` prefix only added for Twilio API calls

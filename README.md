@@ -18,6 +18,7 @@ A WhatsApp bot that provides tide information for Fuerteventura, Canary Islands 
 - Turso database
 - Twilio WhatsApp API
 - WorldTides API key
+- Ngrok (for local development webhook tunneling)
 
 ### Environment Setup
 
@@ -47,6 +48,17 @@ air
 ```
 
 The server starts on port `42069`.
+
+### Development Setup with Ngrok
+
+For local development, you'll need to expose your local server to receive WhatsApp webhooks from Twilio:
+
+```bash
+# Start ngrok tunnel (in a separate terminal)
+ngrok http http://localhost:42069
+```
+
+Copy the ngrok URL (e.g., `https://5aad-85-254-47-205.ngrok-free.app`) and paste it in your Twilio WhatsApp Sandbox console as the webhook URL with the `/message` endpoint: `https://5aad-85-254-47-205.ngrok-free.app/message`
 
 ## API Endpoints
 
