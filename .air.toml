@@ -5,7 +5,7 @@ tmp_dir = "tmp"
 
 [build]
 # Command to build the project
-cmd = "pnpm build && templ generate && go build -o tmp/main ./cmd/"
+cmd = "pnpm build && go run github.com/a-h/templ/cmd/templ generate && go build -o tmp/main ./cmd/"
 
 delay = 1000
 

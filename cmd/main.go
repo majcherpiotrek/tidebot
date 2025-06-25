@@ -7,6 +7,7 @@ import (
 	"os"
 	"tidebot/pkg/environment"
 	"tidebot/pkg/jobs"
+	"tidebot/pkg/ui/home"
 	"tidebot/pkg/users/repositories"
 	"tidebot/pkg/users/services"
 	"tidebot/pkg/whatsapp"
@@ -98,6 +99,8 @@ func main() {
 	// Register routes
 	whatsapp.RegisterWhatsappWebhook(e, whatsappService)
 	jobsController.RegisterRoutes(e)
+
+	home.RegisterHomeRoutes(e)
 
 	e.Logger.Fatal(e.Start(":42069"))
 }
