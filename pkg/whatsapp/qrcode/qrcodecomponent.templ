@@ -1,0 +1,14 @@
+package qrcode
+
+templ QrCodeComponent() {
+	<div
+		hx-get="/whatsapp/components/qrcode"
+		hx-trigger="load delay:3s"
+	>
+		@Skeleton()
+	</div>
+}
+
+templ Skeleton() {
+	<div class="w-64 min-h-64 block bg-gray-300">&nbsp;</div>
+}

@@ -1,0 +1,18 @@
+package whatsappsignup
+
+import "tidebot/pkg/whatsapp/qrcode"
+
+templ WhatsAppSignUp(isMobile bool, phoneNumber string, message string) {
+	<div class="flex flex-col gap-4 justify-center items-center rounded-2xl bg-white p-4 max-w-md shadow-lg  w-full">
+		<h1 class="text-xl font-bold">TideBot</h1>
+		<p class="font-normal">Receive tide reports and notifications on WhatsApp</p>
+		if !isMobile {
+			<h2 class="font-medium">Scan the QR code below to open WhatsApp</h2>
+			@qrcode.QrCodeComponent()
+			<h2>Or ...</h2>
+		}
+		@OpenAppButton(phoneNumber, message)
+		@SendMessageBox(phoneNumber, message)
+		<div hx-get="whatsapp/components/whatsappconnectbutton" hx-trigger="load" hx-swap="outerHTML"></div>
+	</div>
+}
