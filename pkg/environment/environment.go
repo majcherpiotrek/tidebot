@@ -21,6 +21,7 @@ type EnvVars struct {
 	TursoDbAuthToken   string
 	TwilioWhatsAppFrom string
 	WorldTidesApiKey   string
+	ApiKey             string
 	ServerPort         int
 }
 
@@ -70,6 +71,11 @@ func (e Environment) LoadEnv() (EnvVars, error) {
 		missingEnvs = append(missingEnvs, "WORLDTIDES_API_KEY")
 	}
 
+	API_KEY := os.Getenv("API_KEY")
+	if len(API_KEY) == 0 {
+		missingEnvs = append(missingEnvs, "API_KEY")
+	}
+
 	SERVER_PORT := os.Getenv("SERVER_PORT")
 	serverPort, err := strconv.Atoi(SERVER_PORT)
 	if err != nil {
@@ -86,6 +92,7 @@ func (e Environment) LoadEnv() (EnvVars, error) {
 		TursoDbAuthToken:   TURSO_DB_AUTH_TOKEN,
 		TwilioWhatsAppFrom: TWILIO_WHATSAPP_FROM,
 		WorldTidesApiKey:   WORLDTIDES_API_KEY,
+		ApiKey:             API_KEY,
 		ServerPort:         serverPort,
 	}, nil
 }

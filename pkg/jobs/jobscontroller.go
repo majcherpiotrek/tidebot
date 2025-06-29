@@ -2,26 +2,52 @@ package jobs
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 )
 
 type JobsController struct {
 	jobsService JobsService
+	apiKey      string
 	log         echo.Logger
 }
 
-func NewJobsController(jobsService JobsService, log echo.Logger) *JobsController {
+func NewJobsController(jobsService JobsService, apiKey string, log echo.Logger) *JobsController {
 	return &JobsController{
 		jobsService: jobsService,
+		apiKey:      apiKey,
 		log:         log,
 	}
 }
 
 func (jc *JobsController) RegisterRoutes(e *echo.Echo) {
 	jobsGroup := e.Group("/jobs")
+	jobsGroup.Use(jc.apiKeyMiddleware)
 	
 	jobsGroup.POST("/send-tide-extremes", jc.SendTideExtremesToAllUsers)
+}
+
+func (jc *JobsController) apiKeyMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		apiKey := c.Request().Header.Get("X-API-Key")
+		if apiKey == "" {
+			// Also check Authorization header with Bearer format
+			auth := c.Request().Header.Get("Authorization")
+			if strings.HasPrefix(auth, "Bearer ") {
+				apiKey = strings.TrimPrefix(auth, "Bearer ")
+			}
+		}
+
+		if apiKey != jc.apiKey {
+			jc.log.Warnf("Invalid API key attempt from %s", c.RealIP())
+			return c.JSON(http.StatusUnauthorized, map[string]string{
+				"error": "Invalid API key",
+			})
+		}
+
+		return next(c)
+	}
 }
 
 func (jc *JobsController) SendTideExtremesToAllUsers(c echo.Context) error {

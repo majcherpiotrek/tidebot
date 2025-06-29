@@ -84,7 +84,7 @@ func main() {
 	jobsService := jobs.NewJobsService(userService, notificationSubscriptionRepository, whatsappService, worldTidesClient, e.Logger)
 
 	// Initialize controllers
-	jobsController := jobs.NewJobsController(jobsService, e.Logger)
+	jobsController := jobs.NewJobsController(jobsService, envVars.ApiKey, e.Logger)
 
 	// Register routes
 	whatsapp.RegisterWhatsappWebhook(e, whatsappService)
