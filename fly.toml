@@ -1,6 +1,10 @@
 app = "tidebot"
 primary_region = "ams"
 
+[env]
+GO_ENV = "production"
+SERVER_PORT = "8080"
+
 [http_service]
 auto_start_machines = true
 auto_stop_machines = false
