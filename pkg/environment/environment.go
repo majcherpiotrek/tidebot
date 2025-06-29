@@ -37,14 +37,14 @@ func ParseEnvironment(envStr string) (Environment, error) {
 
 func (e Environment) LoadEnv() (EnvVars, error) {
 	err := godotenv.Load()
-	if err != nil {
+	if e == EnvDevelopment && err != nil {
 		return EnvVars{}, fmt.Errorf("Error loading .env file: %v\n", err)
 	}
 
 	envFileName := fmt.Sprintf(".env.%s", e)
 
 	err = godotenv.Load(envFileName)
-	if err != nil {
+	if e == EnvDevelopment && err != nil {
 		return EnvVars{}, fmt.Errorf("Error loading %s file: %v\n", envFileName, err)
 	}
 
