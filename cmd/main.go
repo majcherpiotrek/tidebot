@@ -24,13 +24,6 @@ import (
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
-var (
-	TURSO_DB_URL         = ""
-	TURSO_DB_AUTH_TOKEN  = ""
-	TWILIO_WHATSAPP_FROM = ""
-	WORLDTIDES_API_KEY   = ""
-)
-
 func main() {
 	e := echo.New()
 
@@ -59,18 +52,12 @@ func main() {
 		e.Logger.SetLevel(log.INFO)
 	}
 
-	err = env.LoadEnv()
+	envVars, err := env.LoadEnv()
 	if err != nil {
 		e.Logger.Fatalf("%v", err)
 	}
 
-	// Assign environment variables to the corresponding variables
-	TURSO_DB_URL = os.Getenv("TURSO_DB_URL")
-	TURSO_DB_AUTH_TOKEN = os.Getenv("TURSO_DB_AUTH_TOKEN")
-	TWILIO_WHATSAPP_FROM = os.Getenv("TWILIO_WHATSAPP_FROM")
-	WORLDTIDES_API_KEY = os.Getenv("WORLDTIDES_API_KEY")
-
-	db, err := sql.Open("libsql", fmt.Sprintf("%s?authToken=%s", TURSO_DB_URL, TURSO_DB_AUTH_TOKEN))
+	db, err := sql.Open("libsql", fmt.Sprintf("%s?authToken=%s", envVars.TursoDbUrl, envVars.TursoDbAuthToken))
 	if err != nil {
 		e.Logger.Fatalf("Unable to connect to database: %v\n", err)
 	}
@@ -85,8 +72,8 @@ func main() {
 	userRepository := repositories.NewUserRepository(db, e.Logger)
 
 	// Initialize clients
-	whatsappClient := whatsapp.NewWhatsappClient(TWILIO_WHATSAPP_FROM, e.Logger)
-	worldTidesClient := worldtides.NewWorldTidesClient(WORLDTIDES_API_KEY, e.Logger)
+	whatsappClient := whatsapp.NewWhatsappClient(envVars.TwilioWhatsAppFrom, e.Logger)
+	worldTidesClient := worldtides.NewWorldTidesClient(envVars.WorldTidesApiKey, e.Logger)
 
 	// Initialize services
 	userService := services.NewUserService(userRepository, db, e.Logger)
@@ -98,7 +85,7 @@ func main() {
 
 	// Register routes
 	whatsapp.RegisterWhatsappWebhook(e, whatsappService)
-	whatsapp.RegisterComponents(e)
+	whatsapp.RegisterComponents(e, envVars.TwilioWhatsAppFrom)
 	jobsController.RegisterRoutes(e)
 
 	home.RegisterHomeRoutes(e)

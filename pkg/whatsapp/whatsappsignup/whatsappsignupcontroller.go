@@ -7,7 +7,7 @@ import (
 	"tidebot/pkg/ui/layout"
 )
 
-func RegisterComponent(e *echo.Echo) {
+func RegisterComponent(e *echo.Echo, whatsAppFromNumber string) {
 	e.GET(whatsAppSignupComponentURI,
 		func(c echo.Context) error {
 			req := c.Request()
@@ -15,14 +15,12 @@ func RegisterComponent(e *echo.Echo) {
 			userAgent := req.Header.Get("User-Agent")
 			isMobile := common.IsMobileUserAgent(userAgent)
 
-			phoneNumber := "+14155238886"
-
 			return layout.RenderComponent(
 				c,
 				200,
 				whatsAppSignUpContent(WhatsAppSignUpProps{
 					IsMobile:    isMobile,
-					PhoneNumber: phoneNumber,
+					PhoneNumber: whatsAppFromNumber,
 					Message:     "overpowered",
 				}),
 			)

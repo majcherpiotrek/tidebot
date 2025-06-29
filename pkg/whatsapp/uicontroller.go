@@ -6,6 +6,6 @@ import (
 	"tidebot/pkg/whatsapp/whatsappsignup"
 )
 
-func RegisterComponents(e *echo.Echo) {
-	whatsappsignup.RegisterComponent(e)
+func RegisterComponents(e *echo.Echo, whatsAppFromNumber string) {
+	whatsappsignup.RegisterComponent(e, whatsAppFromNumber)
 }
