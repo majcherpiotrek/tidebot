@@ -28,6 +28,8 @@ func main() {
 	e := echo.New()
 
 	e.Use(middleware.Logger())
+	e.Logger.SetLevel(log.INFO)
+
 	e.Static("/assets", "assets")
 
 	envFlagValue := flag.String("env", "", fmt.Sprintf("Environment ('%s' or '%s')", environment.EnvDevelopment, environment.EnvProduction))
@@ -44,12 +46,11 @@ func main() {
 		env = environment.EnvDevelopment
 	}
 
-	// Set log level based on environment
+	e.Logger.Infof("Environment set: %s", env)
+
 	if env == environment.EnvDevelopment {
 		e.Logger.SetLevel(log.DEBUG)
 		e.Logger.Debug("Debug logging enabled for development environment")
-	} else {
-		e.Logger.SetLevel(log.INFO)
 	}
 
 	envVars, err := env.LoadEnv()
@@ -90,7 +91,7 @@ func main() {
 
 	home.RegisterHomeRoutes(e)
 
-	e.Logger.Fatal(e.Start(":42069"))
+	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", envVars.ServerPort)))
 }
 
 func runMigrations(db *sql.DB, log echo.Logger) error {

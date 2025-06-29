@@ -3,6 +3,7 @@ package environment
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -20,6 +21,7 @@ type EnvVars struct {
 	TursoDbAuthToken   string
 	TwilioWhatsAppFrom string
 	WorldTidesApiKey   string
+	ServerPort         int
 }
 
 func ParseEnvironment(envStr string) (Environment, error) {
@@ -68,6 +70,12 @@ func (e Environment) LoadEnv() (EnvVars, error) {
 		missingEnvs = append(missingEnvs, "WORLDTIDES_API_KEY")
 	}
 
+	SERVER_PORT := os.Getenv("SERVER_PORT")
+	serverPort, err := strconv.Atoi(SERVER_PORT)
+	if err != nil {
+		serverPort = 8080
+	}
+
 	if len(missingEnvs) > 0 {
 		return EnvVars{}, fmt.Errorf("Failed to load env. Missing variables: %v", missingEnvs)
 	}
@@ -78,5 +86,6 @@ func (e Environment) LoadEnv() (EnvVars, error) {
 		TursoDbAuthToken:   TURSO_DB_AUTH_TOKEN,
 		TwilioWhatsAppFrom: TWILIO_WHATSAPP_FROM,
 		WorldTidesApiKey:   WORLDTIDES_API_KEY,
+		ServerPort:         serverPort,
 	}, nil
 }
