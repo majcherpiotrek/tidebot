@@ -163,8 +163,8 @@ func (s *whatsappServiceImpl) handleStartCommand(phoneNumber string) error {
 
 You'll now receive daily tide reports for *Risco del Paso, Fuerteventura* every morning.
 
-📱 Send "tides" anytime for current tide info
-🔕 Send "stop" to disable notifications
+📱 Send *tides* anytime for current tide info
+🔕 Send *stop* to disable notifications
 
 Welcome aboard! 🌊`
 
@@ -178,14 +178,14 @@ func (s *whatsappServiceImpl) handleStopCommand(phoneNumber string) error {
 	user, err := s.userService.GetUserByPhoneNumber(phoneNumber)
 	if err != nil || user == nil {
 		s.log.Warnf("User not found for phone %s, cannot stop notifications", phoneNumber)
-		return s.whatsappClient.SendMessage("🤷‍♂️ You don't have any active notifications to stop.\n\nSend 'start' to enable tide notifications!", phoneNumber)
+		return s.whatsappClient.SendMessage("🤷‍♂️ You don't have any active notifications to stop.\n\nSend *start* to enable tide notifications!", phoneNumber)
 	}
 
 	// Disable subscription
 	err = s.notificationSubscriptionRepository.DisableSubscription(user.ID)
 	if err != nil {
 		if strings.Contains(err.Error(), "no subscription found") {
-			return s.whatsappClient.SendMessage("🤷‍♂️ You don't have any active notifications to stop.\n\nSend 'start' to enable tide notifications!", phoneNumber)
+			return s.whatsappClient.SendMessage("🤷‍♂️ You don't have any active notifications to stop.\n\nSend *start* to enable tide notifications!", phoneNumber)
 		}
 		s.log.Errorf("Failed to disable subscription for user %d: %v", user.ID, err)
 		return s.whatsappClient.SendMessage("❌ Sorry, there was an error. Please try again later.", phoneNumber)
@@ -195,8 +195,8 @@ func (s *whatsappServiceImpl) handleStopCommand(phoneNumber string) error {
 
 You'll no longer receive daily tide reports.
 
-📱 Send "tides" anytime for current tide info
-🔔 Send "start" to re-enable notifications
+📱 Send *tides* anytime for current tide info
+🔔 Send *start* to re-enable notifications
 
 Thanks for using TideBot! 🌊`
 
@@ -208,19 +208,25 @@ func (s *whatsappServiceImpl) sendWelcomeMessage(phoneNumber string) error {
 
 Great! You're now registered to receive tide reports for *Risco del Paso, Fuerteventura*.
 
-*How to use TideBot:*
-
-📱 *Get current tides:* Send "tides"
-🔔 *Subscribe to daily notifications:* Send "start"  
-🔕 *Stop daily notifications:* Send "stop"
-
 Your tide reports include high and low tide times with precise heights. Perfect for planning your beach day, surfing, or fishing! 🏄‍♂️🎣
 
-Try sending "tides" now to get today's tide information! 👇`
+*Available commands:*
+📱 Send *tides* - Get current tide info
+🔔 Send *start* - Enable daily notifications  
+🔕 Send *stop* - Disable notifications`
 
+	// Send welcome message first
 	err := s.whatsappClient.SendMessage(welcomeMessage, phoneNumber)
 	if err != nil {
 		return fmt.Errorf("failed to send welcome message: %w", err)
+	}
+
+	// Send interactive template as follow-up
+	templateSID := "HX6f156e3466407a835bef6505f85cf9b1"
+	err = s.whatsappClient.SendInteractiveTemplate(templateSID, phoneNumber)
+	if err != nil {
+		s.log.Warnf("Failed to send interactive template to %s: %v", phoneNumber, err)
+		// Don't return error - welcome message was sent successfully
 	}
 
 	s.log.Infof("Sent welcome message to %s", phoneNumber)

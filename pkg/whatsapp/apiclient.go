@@ -10,6 +10,7 @@ import (
 
 type WhatsappClient interface {
 	SendMessage(msg string, toNumber string) error
+	SendInteractiveTemplate(templateSID string, toNumber string) error
 }
 
 type whatsappClientImpl struct {
@@ -32,6 +33,17 @@ func (client *whatsappClientImpl) SendMessage(msg string, toNumber string) error
 	params.SetFrom(whatsappNumber(client.fromNumber))
 	params.SetTo(whatsappNumber(toNumber))
 	params.SetBody(msg)
+
+	_, err := client.twilioClient.Api.CreateMessage(params)
+
+	return err
+}
+
+func (client *whatsappClientImpl) SendInteractiveTemplate(templateSID string, toNumber string) error {
+	params := &api.CreateMessageParams{}
+	params.SetFrom(whatsappNumber(client.fromNumber))
+	params.SetTo(whatsappNumber(toNumber))
+	params.SetContentSid(templateSID)
 
 	_, err := client.twilioClient.Api.CreateMessage(params)
 
