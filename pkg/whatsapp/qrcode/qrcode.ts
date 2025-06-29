@@ -9,9 +9,9 @@ const whatsappUrl = `http://wa.me/${phoneNumber}${attachedMessage}`;
 
 const qrCodeElement = document.getElementById("whatsapp-qr-code") as HTMLCanvasElement;
 if (qrCodeElement) {
+	console.log("creating qr")
 	QRCode.toCanvas(qrCodeElement, whatsappUrl, {
 		width: 256,
-		margin: 2,
 		color: {
 			dark: '#000000',
 			light: '#FFFFFF'

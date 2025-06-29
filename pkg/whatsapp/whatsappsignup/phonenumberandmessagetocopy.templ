@@ -1,0 +1,76 @@
+package whatsappsignup
+
+import "tidebot/pkg/ui/icons"
+import "tidebot/pkg/common"
+
+templ PhoneNumberAndMessageToCopy(phoneNumber string, message string) {
+	<div class="flex flex-col w-full p-3 items-center gap-3 rounded-xl border border-gray-200">
+		<h2 class="font-medium mb-1 ">Send a message</h2>
+		<div class="w-full flex justify-between items-center gap-2">
+			<p class="flex items-center gap-1">
+				<img src="/assets/static/images/whatsapp-logo.svg" alt="WhatsApp Logo" class="w-6 h-6"/>
+				<span class="">{ common.FormatPhoneNumber(phoneNumber) }</span>
+			</p>
+			<button
+				class="cursor-pointer hover:text-whatsapp-500"
+				onclick="copyToClipboard(this)"
+				data-to-copy={ phoneNumber }
+			>
+				@icons.Icon("copy", "w-4 h-4")
+			</button>
+		</div>
+		<div class="w-full flex justify-between items-center gap-2">
+			<p class="font-light">
+				with text 
+				<span class="font-normal">{ message }</span>
+			</p>
+			<button
+				class="cursor-pointer hover:text-whatsapp-500"
+				onclick="copyToClipboard(this)"
+				data-to-copy={ message }
+			>
+				@icons.Icon("copy", "w-4 h-4")
+			</button>
+		</div>
+	</div>
+	<script>
+		function copyToClipboard(button) {
+			const copied = button.getAttribute('data-to-copy');
+			navigator.clipboard.writeText(copied).then(() => {
+				// Show feedback
+				console.log("copied", copied)
+			}).catch(err => {
+				console.error('Failed to copy: ', err);
+			});
+		}
+	</script>
+}
+
+templ PhoneNumberAndMessageToCopySkeleton() {
+	<div class="flex flex-col w-full p-3 items-center gap-3 rounded-xl border border-gray-200">
+		<h2 class="font-medium mb-1 ">Send a message</h2>
+		<div class="w-full flex justify-between items-center gap-2">
+			<p class="flex items-center gap-1">
+				<img src="/assets/static/images/whatsapp-logo.svg" alt="WhatsApp Logo" class="w-6 h-6"/>
+				<span class="block rounded-md text-transparent bg-gray-200 animate-pulse">+1 234-567-8989</span>
+			</p>
+			<button
+				disabled
+				class="cursor-pointer hover:text-whatsapp-500"
+			>
+				@icons.Icon("copy", "w-4 h-4")
+			</button>
+		</div>
+		<div class="w-full flex justify-between items-center gap-2">
+			<p class="block rounded-md text-transparent bg-gray-200 animate-pulse">
+				with text overpowered
+			</p>
+			<button
+				disabled
+				class="cursor-pointer hover:text-whatsapp-500"
+			>
+				@icons.Icon("copy", "w-4 h-4")
+			</button>
+		</div>
+	</div>
+}

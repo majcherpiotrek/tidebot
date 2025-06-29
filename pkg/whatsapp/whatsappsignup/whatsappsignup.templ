@@ -2,17 +2,47 @@ package whatsappsignup
 
 import "tidebot/pkg/whatsapp/qrcode"
 
-templ WhatsAppSignUp(isMobile bool, phoneNumber string, message string) {
-	<div class="flex flex-col gap-4 justify-center items-center rounded-2xl bg-white p-4 max-w-md shadow-lg  w-full">
+templ WhatsAppSignUp(isMobile bool) {
+	<div class="flex flex-col gap-4 justify-center items-center rounded-2xl bg-white p-4 max-w-sm shadow-lg  w-full">
 		<h1 class="text-xl font-bold">TideBot</h1>
 		<p class="font-normal">Receive tide reports and notifications on WhatsApp</p>
-		if !isMobile {
-			<h2 class="font-medium">Scan the QR code below to open WhatsApp</h2>
-			@qrcode.QrCodeComponent()
-			<h2>Or ...</h2>
-		}
-		@OpenAppButton(phoneNumber, message)
-		@SendMessageBox(phoneNumber, message)
-		<div hx-get="whatsapp/components/whatsappconnectbutton" hx-trigger="load" hx-swap="outerHTML"></div>
+		<div class="w-full flex flex-col gap-4 items-center" hx-get={ whatsAppSignupComponentURI } hx-trigger="load delay:3s">
+			if !isMobile {
+				<h2 class="font-medium">Scan the QR code below to open WhatsApp</h2>
+			}
+			@whatsAppSignUpContentSkeleton(isMobile)
+		</div>
+	</div>
+}
+
+templ whatsAppSignUpContent(props WhatsAppSignUpProps) {
+	if !props.IsMobile {
+		@qrcode.QrCode(props.PhoneNumber, props.Message)
+		@Divider()
+	}
+	@OpenAppButton(props.PhoneNumber, props.Message)
+	if props.IsMobile {
+		@Divider()
+		@PhoneNumberAndMessageToCopy(props.PhoneNumber, props.Message)
+	}
+}
+
+templ whatsAppSignUpContentSkeleton(isMobile bool) {
+	if !isMobile {
+		@qrcode.QrCodeSkeleton()
+		@Divider()
+	}
+	@OpenAppButtonSkeleton()
+	if isMobile {
+		@Divider()
+		@PhoneNumberAndMessageToCopySkeleton()
+	}
+}
+
+templ Divider() {
+	<div class="w-full flex items-center gap-2 px-3">
+		<div class="border-t border-gray-200 flex-1"></div>
+		<span class="">Or&nbsp;...</span>
+		<div class="border-t border-gray-200 flex-1"></div>
 	</div>
 }

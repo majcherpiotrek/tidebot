@@ -1,7 +1,11 @@
 package qrcode
 
 templ QrCode(phoneNumber string, message string) {
-	<canvas id="whatsapp-qr-code" class="rounded-xl"></canvas>
+	<canvas id="w-72 min-h-72 whatsapp-qr-code border border-xl border-gray-200 p-3"></canvas>
 	@templ.JSONScript("whatsappQrCodeProps", map[string]string{"phoneNumber": phoneNumber, "message": message})
 	<script src="/assets/js/pkg/whatsapp/qrcode.js"></script>
+}
+
+templ QrCodeSkeleton() {
+	<div class="w-72 min-h-72 block bg-gray-300 rounded-xl animate-pulse">&nbsp;</div>
 }

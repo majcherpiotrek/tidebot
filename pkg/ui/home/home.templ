@@ -1,7 +1,9 @@
 package home
 
-templ HomePage() {
-	<div class="w-full min-h-screen flex justify-center p-8">
-		<div hx-get="whatsapp/components/whatsappsignup" hx-swap="outerHTML" hx-trigger="load"></div>
+import "tidebot/pkg/whatsapp/whatsappsignup"
+
+templ HomePage(isMobile bool) {
+	<div class="w-full flex justify-center p-8">
+		@whatsappsignup.WhatsAppSignUp(isMobile)
 	</div>
 }
