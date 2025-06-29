@@ -1,6 +1,8 @@
 FROM node:20 AS node-builder
 WORKDIR /app
 COPY . .
+ENV CI=true
+ENV PNPM_CONFIG_CONFIRM=true
 RUN corepack enable && pnpm install --frozen-lockfile && pnpm build
 
 FROM golang:1.23 as go-builder
