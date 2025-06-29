@@ -3,6 +3,8 @@ package whatsapp
 import (
 	"fmt"
 	"strings"
+	"time"
+	"tidebot/pkg/notifications/repositories"
 	"tidebot/pkg/users/services"
 	"tidebot/pkg/worldtides"
 
@@ -15,39 +17,43 @@ type WhatsAppService interface {
 }
 
 type whatsappServiceImpl struct {
-	userService    services.UserService
-	whatsappClient WhatsappClient
-	log            echo.Logger
+	userService                      services.UserService
+	notificationSubscriptionRepository repositories.NotificationSubscriptionRepository
+	worldTidesClient                 worldtides.WorldTidesClient
+	whatsappClient                   WhatsappClient
+	log                              echo.Logger
 }
 
-func NewWhatsAppService(userService services.UserService, whatsappClient WhatsappClient, log echo.Logger) WhatsAppService {
+func NewWhatsAppService(userService services.UserService, notificationSubscriptionRepository repositories.NotificationSubscriptionRepository, worldTidesClient worldtides.WorldTidesClient, whatsappClient WhatsappClient, log echo.Logger) WhatsAppService {
 	return &whatsappServiceImpl{
-		userService:    userService,
-		whatsappClient: whatsappClient,
-		log:            log,
+		userService:                      userService,
+		notificationSubscriptionRepository: notificationSubscriptionRepository,
+		worldTidesClient:                 worldTidesClient,
+		whatsappClient:                   whatsappClient,
+		log:                              log,
 	}
 }
 
 func (s *whatsappServiceImpl) ProcessMessage(body string, from string, profileName *string) error {
 	s.log.Debugf("Processing WhatsApp message - body: %s, from: %s, profileName: %v", body, from, profileName)
 
-	// Check if message body is "overpowered"
-	if strings.ToLower(strings.TrimSpace(body)) == "overpowered" {
-		s.log.Info("Received 'overpowered' message, saving user")
-
-		cleanPhoneNumber := strings.TrimPrefix(from, "whatsapp:")
-
-		err := s.userService.SaveUser(cleanPhoneNumber, profileName)
-		if err != nil {
-			return fmt.Errorf("failed to save user: %w", err)
-		}
-
-		s.log.Info("Successfully processed 'overpowered' message")
+	// Handle commands
+	command := strings.ToLower(strings.TrimSpace(body))
+	cleanPhoneNumber := strings.TrimPrefix(from, "whatsapp:")
+	
+	switch command {
+	case "overpowered":
+		return s.handleSignupMessage(cleanPhoneNumber, profileName)
+	case "tides":
+		return s.handleTidesCommand(cleanPhoneNumber)
+	case "start":
+		return s.handleStartCommand(cleanPhoneNumber)
+	case "stop":
+		return s.handleStopCommand(cleanPhoneNumber)
+	default:
+		s.log.Debugf("Message body '%s' does not match any known commands, ignoring", body)
 		return nil
 	}
-
-	s.log.Debugf("Message body '%s' does not match 'overpowered', ignoring", body)
-	return nil
 }
 
 func (s *whatsappServiceImpl) SendTideExtremesMessage(phoneNumber string, extremes []worldtides.Extreme, date string) error {
@@ -91,4 +97,132 @@ func (s *whatsappServiceImpl) formatTideExtremesMessage(extremes []worldtides.Ex
 	message.WriteString("\n📍 Fuerteventura, Risco del Paso, Canary Islands")
 
 	return message.String()
+}
+
+func (s *whatsappServiceImpl) handleSignupMessage(phoneNumber string, profileName *string) error {
+	s.log.Info("Received 'overpowered' message, saving user")
+
+	err := s.userService.SaveUser(phoneNumber, profileName)
+	if err != nil {
+		return fmt.Errorf("failed to save user: %w", err)
+	}
+
+	// Send welcome message
+	err = s.sendWelcomeMessage(phoneNumber)
+	if err != nil {
+		s.log.Errorf("Failed to send welcome message to %s: %v", phoneNumber, err)
+		// Don't return error - user is saved, just welcome message failed
+	}
+
+	s.log.Info("Successfully processed 'overpowered' message")
+	return nil
+}
+
+func (s *whatsappServiceImpl) handleTidesCommand(phoneNumber string) error {
+	s.log.Infof("Handling tides command for %s", phoneNumber)
+
+	// Get today's date
+	today := time.Now().Format("2006-01-02")
+	
+	// Fetch tide extremes from WorldTides API
+	tidesResponse, err := s.worldTidesClient.GetTidalExtremesForDay(today)
+	if err != nil {
+		s.log.Errorf("Failed to fetch tide extremes for %s: %v", phoneNumber, err)
+		return s.whatsappClient.SendMessage("❌ Sorry, I couldn't fetch tide data right now. Please try again later.", phoneNumber)
+	}
+
+	// Send tide extremes using existing method
+	return s.SendTideExtremesMessage(phoneNumber, tidesResponse.Extremes, today)
+}
+
+func (s *whatsappServiceImpl) handleStartCommand(phoneNumber string) error {
+	s.log.Infof("Handling start command for %s", phoneNumber)
+
+	// Auto-register user if not exists (idempotent)
+	err := s.userService.SaveUser(phoneNumber, nil)
+	if err != nil {
+		s.log.Errorf("Failed to save user for phone %s: %v", phoneNumber, err)
+		return s.whatsappClient.SendMessage("❌ Sorry, there was an error. Please try again later.", phoneNumber)
+	}
+
+	// Get user to get ID
+	user, err := s.userService.GetUserByPhoneNumber(phoneNumber)
+	if err != nil || user == nil {
+		s.log.Errorf("Failed to get user after save for phone %s: %v", phoneNumber, err)
+		return s.whatsappClient.SendMessage("❌ Sorry, there was an error. Please try again later.", phoneNumber)
+	}
+
+	// Create/enable subscription
+	err = s.notificationSubscriptionRepository.CreateSubscription(user.ID)
+	if err != nil {
+		s.log.Errorf("Failed to create subscription for user %d: %v", user.ID, err)
+		return s.whatsappClient.SendMessage("❌ Sorry, there was an error enabling notifications. Please try again later.", phoneNumber)
+	}
+
+	confirmationMessage := `🔔 *Notifications Enabled!*
+
+You'll now receive daily tide reports for *Risco del Paso, Fuerteventura* every morning.
+
+📱 Send "tides" anytime for current tide info
+🔕 Send "stop" to disable notifications
+
+Welcome aboard! 🌊`
+
+	return s.whatsappClient.SendMessage(confirmationMessage, phoneNumber)
+}
+
+func (s *whatsappServiceImpl) handleStopCommand(phoneNumber string) error {
+	s.log.Infof("Handling stop command for %s", phoneNumber)
+
+	// Get user
+	user, err := s.userService.GetUserByPhoneNumber(phoneNumber)
+	if err != nil || user == nil {
+		s.log.Warnf("User not found for phone %s, cannot stop notifications", phoneNumber)
+		return s.whatsappClient.SendMessage("🤷‍♂️ You don't have any active notifications to stop.\n\nSend 'start' to enable tide notifications!", phoneNumber)
+	}
+
+	// Disable subscription
+	err = s.notificationSubscriptionRepository.DisableSubscription(user.ID)
+	if err != nil {
+		if strings.Contains(err.Error(), "no subscription found") {
+			return s.whatsappClient.SendMessage("🤷‍♂️ You don't have any active notifications to stop.\n\nSend 'start' to enable tide notifications!", phoneNumber)
+		}
+		s.log.Errorf("Failed to disable subscription for user %d: %v", user.ID, err)
+		return s.whatsappClient.SendMessage("❌ Sorry, there was an error. Please try again later.", phoneNumber)
+	}
+
+	confirmationMessage := `🔕 *Notifications Disabled*
+
+You'll no longer receive daily tide reports.
+
+📱 Send "tides" anytime for current tide info
+🔔 Send "start" to re-enable notifications
+
+Thanks for using TideBot! 🌊`
+
+	return s.whatsappClient.SendMessage(confirmationMessage, phoneNumber)
+}
+
+func (s *whatsappServiceImpl) sendWelcomeMessage(phoneNumber string) error {
+	welcomeMessage := `🌊 *Welcome to TideBot!*
+
+Great! You're now registered to receive tide reports for *Risco del Paso, Fuerteventura*.
+
+*How to use TideBot:*
+
+📱 *Get current tides:* Send "tides"
+🔔 *Subscribe to daily notifications:* Send "start"  
+🔕 *Stop daily notifications:* Send "stop"
+
+Your tide reports include high and low tide times with precise heights. Perfect for planning your beach day, surfing, or fishing! 🏄‍♂️🎣
+
+Try sending "tides" now to get today's tide information! 👇`
+
+	err := s.whatsappClient.SendMessage(welcomeMessage, phoneNumber)
+	if err != nil {
+		return fmt.Errorf("failed to send welcome message: %w", err)
+	}
+
+	s.log.Infof("Sent welcome message to %s", phoneNumber)
+	return nil
 }

@@ -13,6 +13,8 @@ import (
 type UserService interface {
 	SaveUser(phoneNumber string, name *string) error
 	GetAllUsers() ([]models.User, error)
+	GetUserByID(id int) (*models.User, error)
+	GetUserByPhoneNumber(phoneNumber string) (*models.User, error)
 }
 
 type userServiceImpl struct {
@@ -77,5 +79,29 @@ func (s *userServiceImpl) GetAllUsers() ([]models.User, error) {
 
 	s.log.Debugf("Successfully retrieved %d users", len(users))
 	return users, nil
+}
+
+func (s *userServiceImpl) GetUserByID(id int) (*models.User, error) {
+	s.log.Debugf("Getting user by ID: %d", id)
+
+	user, err := s.userRepository.GetByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user by ID: %w", err)
+	}
+
+	s.log.Debugf("Successfully retrieved user: %s", user.PhoneNumber)
+	return &user, nil
+}
+
+func (s *userServiceImpl) GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
+	s.log.Debugf("Getting user by phone number: %s", phoneNumber)
+
+	user, err := s.userRepository.GetByPhoneNumber(phoneNumber)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user by phone number: %w", err)
+	}
+
+	s.log.Debugf("Successfully retrieved user: %d", user.ID)
+	return &user, nil
 }
 

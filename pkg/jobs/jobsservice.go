@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"fmt"
+	"tidebot/pkg/notifications/repositories"
 	"tidebot/pkg/users/services"
 	"tidebot/pkg/whatsapp"
 	"tidebot/pkg/worldtides"
@@ -15,23 +16,26 @@ type JobsService interface {
 }
 
 type jobsServiceImpl struct {
-	userService      services.UserService
-	whatsappService  whatsapp.WhatsAppService
-	worldTidesClient worldtides.WorldTidesClient
-	log              echo.Logger
+	userService                        services.UserService
+	notificationSubscriptionRepository repositories.NotificationSubscriptionRepository
+	whatsappService                    whatsapp.WhatsAppService
+	worldTidesClient                   worldtides.WorldTidesClient
+	log                                echo.Logger
 }
 
 func NewJobsService(
 	userService services.UserService,
+	notificationSubscriptionRepository repositories.NotificationSubscriptionRepository,
 	whatsappService whatsapp.WhatsAppService,
 	worldTidesClient worldtides.WorldTidesClient,
 	log echo.Logger,
 ) JobsService {
 	return &jobsServiceImpl{
-		userService:      userService,
-		whatsappService:  whatsappService,
-		worldTidesClient: worldTidesClient,
-		log:              log,
+		userService:                        userService,
+		notificationSubscriptionRepository: notificationSubscriptionRepository,
+		whatsappService:                    whatsappService,
+		worldTidesClient:                   worldTidesClient,
+		log:                                log,
 	}
 }
 
@@ -57,35 +61,43 @@ func (j *jobsServiceImpl) SendTideExtremesToAllUsers() error {
 			i+1, extreme.Type, localTime, extreme.Height, extreme.Dt, extreme.Date)
 	}
 
-	// Get all registered users
-	users, err := j.userService.GetAllUsers()
+	// Get all users with enabled subscriptions
+	subscriptions, err := j.notificationSubscriptionRepository.GetEnabledSubscriptions()
 	if err != nil {
-		return fmt.Errorf("failed to get users: %w", err)
+		return fmt.Errorf("failed to get enabled subscriptions: %w", err)
 	}
 
-	j.log.Infof("Found %d registered users to send tide extremes", len(users))
+	j.log.Infof("Found %d users with enabled subscriptions to send tide extremes", len(subscriptions))
 
-	// Send tide extremes to each user
+	// Send tide extremes to each subscribed user
 	successCount := 0
 	errorCount := 0
 
-	for _, user := range users {
-		j.log.Debugf("Sending tide extremes to user ID=%d, phone=%s", user.ID, user.PhoneNumber)
-
-		err := j.whatsappService.SendTideExtremesMessage(user.PhoneNumber, tidesResponse.Extremes, today)
+	for _, subscription := range subscriptions {
+		// Get user details to get phone number
+		user, err := j.userService.GetUserByID(subscription.UserID)
 		if err != nil {
-			j.log.Errorf("Failed to send tide extremes to user ID=%d: %v", user.ID, err)
+			j.log.Errorf("Failed to get user details for subscription ID=%d, UserID=%d: %v", subscription.ID, subscription.UserID, err)
+			errorCount++
+			continue
+		}
+
+		j.log.Debugf("Sending tide extremes to subscribed user ID=%d, phone=%s", subscription.UserID, user.PhoneNumber)
+
+		err = j.whatsappService.SendTideExtremesMessage(user.PhoneNumber, tidesResponse.Extremes, today)
+		if err != nil {
+			j.log.Errorf("Failed to send tide extremes to user ID=%d: %v", subscription.UserID, err)
 			errorCount++
 		} else {
-			j.log.Debugf("Successfully sent tide extremes to user ID=%d", user.ID)
+			j.log.Debugf("Successfully sent tide extremes to user ID=%d", subscription.UserID)
 			successCount++
 		}
 	}
 
-	j.log.Infof("Job completed: %d successful, %d errors out of %d users", successCount, errorCount, len(users))
+	j.log.Infof("Job completed: %d successful, %d errors out of %d subscribed users", successCount, errorCount, len(subscriptions))
 
 	if errorCount > 0 {
-		return fmt.Errorf("job completed with %d errors out of %d users", errorCount, len(users))
+		return fmt.Errorf("job completed with %d errors out of %d subscribed users", errorCount, len(subscriptions))
 	}
 
 	return nil

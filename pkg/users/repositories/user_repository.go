@@ -11,6 +11,7 @@ import (
 
 type UserRepository interface {
 	ListAll() ([]models.User, error)
+	GetByID(id int) (models.User, error)
 	GetByPhoneNumber(phoneNumber string) (models.User, error)
 	Save(models.UserWriteModel) (models.User, error)
 	Update(id int, writeModel models.UserWriteModel) (models.User, error)
@@ -61,6 +62,31 @@ func (r *userRepositoryImpl) ListAll() ([]models.User, error) {
 
 	r.log.Debugf("Successfully listed %d users", len(allUsers))
 	return allUsers, nil
+}
+
+func (r *userRepositoryImpl) GetByID(id int) (models.User, error) {
+	r.log.Debugf("Attempting to get user by ID: %d", id)
+
+	query := `SELECT id, phone_number, name, created_at, updated_at FROM users WHERE id = ? LIMIT 1`
+
+	var user models.User
+	err := r.db.QueryRowContext(context.Background(), query, id).Scan(
+		&user.ID,
+		&user.PhoneNumber,
+		&user.Name,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return models.User{}, fmt.Errorf("user not found with id '%d'", id)
+		}
+		return models.User{}, fmt.Errorf("failed to get user by id: %w", err)
+	}
+
+	r.log.Debugf("Successfully found user with phone='%s' for ID '%d'", user.PhoneNumber, id)
+	return user, nil
 }
 
 func (r *userRepositoryImpl) GetByPhoneNumber(phoneNumber string) (models.User, error) {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"tidebot/pkg/environment"
 	"tidebot/pkg/jobs"
+	notificationRepos "tidebot/pkg/notifications/repositories"
 	"tidebot/pkg/ui/home"
 	"tidebot/pkg/users/repositories"
 	"tidebot/pkg/users/services"
@@ -71,6 +72,7 @@ func main() {
 
 	// Initialize repositories
 	userRepository := repositories.NewUserRepository(db, e.Logger)
+	notificationSubscriptionRepository := notificationRepos.NewNotificationSubscriptionRepository(db, e.Logger)
 
 	// Initialize clients
 	whatsappClient := whatsapp.NewWhatsappClient(envVars.TwilioWhatsAppFrom, e.Logger)
@@ -78,8 +80,8 @@ func main() {
 
 	// Initialize services
 	userService := services.NewUserService(userRepository, db, e.Logger)
-	whatsappService := whatsapp.NewWhatsAppService(userService, whatsappClient, e.Logger)
-	jobsService := jobs.NewJobsService(userService, whatsappService, worldTidesClient, e.Logger)
+	whatsappService := whatsapp.NewWhatsAppService(userService, notificationSubscriptionRepository, worldTidesClient, whatsappClient, e.Logger)
+	jobsService := jobs.NewJobsService(userService, notificationSubscriptionRepository, whatsappService, worldTidesClient, e.Logger)
 
 	// Initialize controllers
 	jobsController := jobs.NewJobsController(jobsService, e.Logger)
