@@ -1,7 +1,7 @@
 FROM node:20 AS node-builder
 WORKDIR /app
 COPY . .
-RUN corepack enable && pnpm install && pnpm build
+RUN corepack enable && pnpm install --frozen-lockfile && pnpm build
 
 FROM golang:1.23 as go-builder
 WORKDIR /app
