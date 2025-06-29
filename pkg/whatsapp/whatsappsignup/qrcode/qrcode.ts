@@ -1,5 +1,5 @@
 import QRCode from "qrcode";
-import { getServerProps } from "../../common/utils";
+import { getServerProps } from "../../../common/utils";
 
 const { phoneNumber, message } = getServerProps<{ phoneNumber: string, message: string }>("whatsappQrCodeProps");
 
@@ -9,9 +9,9 @@ const whatsappUrl = `http://wa.me/${phoneNumber}${attachedMessage}`;
 
 const qrCodeElement = document.getElementById("whatsapp-qr-code") as HTMLCanvasElement;
 if (qrCodeElement) {
-	console.log("creating qr")
 	QRCode.toCanvas(qrCodeElement, whatsappUrl, {
-		width: 256,
+		width: 288,
+		margin: 2,
 		color: {
 			dark: '#000000',
 			light: '#FFFFFF'
@@ -19,5 +19,7 @@ if (qrCodeElement) {
 	}).catch((error) => {
 		console.error('Error generating QR code:', error);
 	})
+} else {
+	console.error("QR code canvas element not found");
 }
 

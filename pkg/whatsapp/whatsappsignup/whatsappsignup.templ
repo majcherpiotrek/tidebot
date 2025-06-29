@@ -1,15 +1,27 @@
 package whatsappsignup
 
-import "tidebot/pkg/whatsapp/qrcode"
+import "tidebot/pkg/whatsapp/whatsappsignup/qrcode"
 
 templ WhatsAppSignUp(isMobile bool) {
-	<div class="flex flex-col gap-4 justify-center items-center rounded-2xl bg-white p-4 max-w-sm shadow-lg  w-full">
-		<h1 class="text-xl font-bold">TideBot</h1>
-		<p class="font-normal">Receive tide reports and notifications on WhatsApp</p>
-		<div class="w-full flex flex-col gap-4 items-center" hx-get={ whatsAppSignupComponentURI } hx-trigger="load delay:3s">
-			if !isMobile {
-				<h2 class="font-medium">Scan the QR code below to open WhatsApp</h2>
-			}
+	<div class="flex flex-col gap-4 justify-center items-center rounded-2xl bg-white p-6 max-w-sm shadow-lg w-full">
+		<div class="text-center space-y-2">
+			<h1 class="text-2xl font-bold text-gray-800">🌊 TideBot</h1>
+			<p class="text-gray-600 text-sm leading-relaxed">
+				Get <strong>daily tide reports</strong> { "for" } Fuerteventura delivered straight to your WhatsApp
+			</p>
+		</div>
+		<div class="w-full bg-blue-50 border border-blue-200 rounded-xl p-3">
+			<div class="text-sm text-blue-800 space-y-1">
+				<p>• <strong>Daily notifications</strong> with high and low tide times</p>
+				<p>• Send <code class="bg-blue-100 px-1 rounded">start</code> or <code class="bg-blue-100 px-1 rounded">stop</code> to control notifications</p>
+				<p>• Currently covering <strong>Fuerteventura</strong> with more locations coming soon</p>
+				<p>• More configurable notifications and <strong>lagoon times</strong> coming soon</p>
+			</div>
+		</div>
+		if !isMobile {
+			<h2 class="font-medium text-gray-700">Scan the QR code to get started</h2>
+		}
+		<div class="w-full flex flex-col gap-4 items-center" hx-get={ whatsAppSignupComponentURI } hx-trigger="load delay:300ms" hx-swap="innerHTML transition:true">
 			@whatsAppSignUpContentSkeleton(isMobile)
 		</div>
 	</div>
@@ -42,7 +54,7 @@ templ whatsAppSignUpContentSkeleton(isMobile bool) {
 templ Divider() {
 	<div class="w-full flex items-center gap-2 px-3">
 		<div class="border-t border-gray-200 flex-1"></div>
-		<span class="">Or&nbsp;...</span>
+		<span class="font-medium">Or&nbsp;...</span>
 		<div class="border-t border-gray-200 flex-1"></div>
 	</div>
 }

@@ -98,7 +98,7 @@ func main() {
 
 	// Register routes
 	whatsapp.RegisterWhatsappWebhook(e, whatsappService)
-	whatsapp.RegisterWhatsappComponents(e)
+	whatsapp.RegisterComponents(e)
 	jobsController.RegisterRoutes(e)
 
 	home.RegisterHomeRoutes(e)

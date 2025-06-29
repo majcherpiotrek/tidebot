@@ -1,0 +1,13 @@
+package qrcode
+
+templ QrCode(phoneNumber string, message string) {
+	<canvas id="whatsapp-qr-code" class="border border-gray-200 rounded-xl"></canvas>
+	@templ.JSONScript("whatsappQrCodeProps", map[string]string{"phoneNumber": phoneNumber, "message": message})
+	<script src="/assets/js/pkg/whatsapp/whatsappsignup/qrcode/qrcode.js"></script>
+}
+
+templ QrCodeSkeleton() {
+	<div class="w-72 min-h-72 p-4 block border border-gray-200 rounded-xl">
+		<div class="w-full h-full bg-gray-200 animate-pulse rounded-lg"></div>
+	</div>
+}
