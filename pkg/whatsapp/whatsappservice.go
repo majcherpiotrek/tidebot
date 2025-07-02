@@ -223,10 +223,13 @@ Your tide reports include high and low tide times with precise heights. Perfect 
 
 	// Send interactive template as follow-up
 	templateSID := "HX6f156e3466407a835bef6505f85cf9b1"
+	s.log.Infof("Attempting to send interactive template %s to %s", templateSID, phoneNumber)
 	err = s.whatsappClient.SendInteractiveTemplate(templateSID, phoneNumber)
 	if err != nil {
-		s.log.Warnf("Failed to send interactive template to %s: %v", phoneNumber, err)
+		s.log.Errorf("Failed to send interactive template to %s: %v", phoneNumber, err)
 		// Don't return error - welcome message was sent successfully
+	} else {
+		s.log.Infof("Successfully sent interactive template to %s", phoneNumber)
 	}
 
 	s.log.Infof("Sent welcome message to %s", phoneNumber)

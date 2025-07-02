@@ -54,20 +54,37 @@ func RegisterWhatsappWebhook(e *echo.Echo, whatsappService WhatsAppService) {
 			messageBody := formData.Get("Body")
 			from := formData.Get("From")
 			profileName := formData.Get("ProfileName")
+			messageType := formData.Get("MessageType")
+			buttonPayload := formData.Get("ButtonPayload")
+			buttonText := formData.Get("ButtonText")
 
 			// Process the message if we have the required fields
-			if messageBody != "" && from != "" {
+			if from != "" {
 				var profileNamePtr *string
 				if profileName != "" {
 					profileNamePtr = &profileName
 				}
 
-				err := whatsappService.ProcessMessage(messageBody, from, profileNamePtr)
-				if err != nil {
-					logger.Errorf("📱 Failed to process message: %v", err)
-					return c.JSON(http.StatusInternalServerError, map[string]string{
-						"error": "Failed to process message",
-					})
+				// Determine what message to process
+				var messageToProcess string
+				if messageType == "button" && buttonPayload != "" {
+					// Use button payload (ID) for button responses
+					messageToProcess = buttonPayload
+					logger.Infof("📱 Processing button response - ID: %s, Text: %s", buttonPayload, buttonText)
+				} else {
+					// Use message body for regular text messages
+					messageToProcess = messageBody
+					logger.Infof("📱 Processing text message: %s", messageBody)
+				}
+
+				if messageToProcess != "" {
+					err := whatsappService.ProcessMessage(messageToProcess, from, profileNamePtr)
+					if err != nil {
+						logger.Errorf("📱 Failed to process message: %v", err)
+						return c.JSON(http.StatusInternalServerError, map[string]string{
+							"error": "Failed to process message",
+						})
+					}
 				}
 			}
 		}
