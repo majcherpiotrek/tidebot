@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Send Daily Tide Reports
         run: |
-          curl -X POST "${{ secrets.APP_URL }}/jobs/send-tide-extremes" \
+          curl -X POST "${{ secrets.APP_URL }}/jobs/v2/send-daily-notifications" \
             -H "X-API-Key: ${{ secrets.API_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.API_KEY }}" \
             -H "Content-Type: application/json" \

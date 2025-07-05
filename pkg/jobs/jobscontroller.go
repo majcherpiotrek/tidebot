@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -24,9 +25,9 @@ func NewJobsController(jobsService JobsService, apiKey string, log echo.Logger) 
 func (jc *JobsController) RegisterRoutes(e *echo.Echo) {
 	jobsGroup := e.Group("/jobs")
 	jobsGroup.Use(jc.apiKeyMiddleware)
-	
+
 	jobsGroup.POST("/send-tide-extremes", jc.SendTideExtremesToAllUsers)
-	jobsGroup.POST("/v2/send-daily-notifications", jc.SendDailyNotificationsV2)
+	jobsGroup.POST("/v2/send-daily-notifications", jc.SendDailyNotifications)
 }
 
 func (jc *JobsController) apiKeyMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
@@ -35,8 +36,8 @@ func (jc *JobsController) apiKeyMiddleware(next echo.HandlerFunc) echo.HandlerFu
 		if apiKey == "" {
 			// Also check Authorization header with Bearer format
 			auth := c.Request().Header.Get("Authorization")
-			if strings.HasPrefix(auth, "Bearer ") {
-				apiKey = strings.TrimPrefix(auth, "Bearer ")
+			if after, ok := strings.CutPrefix(auth, "Bearer "); ok {
+				apiKey = after
 			}
 		}
 
@@ -71,10 +72,10 @@ func (jc *JobsController) SendTideExtremesToAllUsers(c echo.Context) error {
 	})
 }
 
-func (jc *JobsController) SendDailyNotificationsV2(c echo.Context) error {
+func (jc *JobsController) SendDailyNotifications(c echo.Context) error {
 	jc.log.Info("Received request to send daily tide notifications (v2)")
 
-	err := jc.jobsService.SendDailyNotificationsV2()
+	successCount, err := jc.jobsService.SendDailyNotificationsV2()
 	if err != nil {
 		jc.log.Errorf("Failed to send daily notifications: %v", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -86,7 +87,9 @@ func (jc *JobsController) SendDailyNotificationsV2(c echo.Context) error {
 
 	jc.log.Info("Successfully completed sending daily notifications")
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"status":  "success",
-		"message": "Daily notifications sent successfully",
+		"status":       "success",
+		"successCount": strconv.Itoa(successCount),
+		"message":      "Daily notifications sent successfully",
 	})
 }
+

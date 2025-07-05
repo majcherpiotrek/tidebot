@@ -11,10 +11,10 @@ import (
 )
 
 type UserService interface {
-	SaveUser(phoneNumber string, name *string) error
+	SaveUser(phoneNumber string, name *string) (models.User, error)
 	GetAllUsers() ([]models.User, error)
-	GetUserByID(id int) (*models.User, error)
-	GetUserByPhoneNumber(phoneNumber string) (*models.User, error)
+	GetUserByID(id int) (models.User, error)
+	GetUserByPhoneNumber(phoneNumber string) (models.User, error)
 }
 
 type userServiceImpl struct {
@@ -31,12 +31,12 @@ func NewUserService(userRepository repositories.UserRepository, db *sql.DB, log 
 	}
 }
 
-func (s *userServiceImpl) SaveUser(phoneNumber string, name *string) error {
+func (s *userServiceImpl) SaveUser(phoneNumber string, name *string) (models.User, error) {
 	s.log.Debugf("Attempting to save user - phone: %s, name: %v", phoneNumber, name)
 
 	tx, err := s.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
+		return models.User{}, fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -44,11 +44,11 @@ func (s *userServiceImpl) SaveUser(phoneNumber string, name *string) error {
 	if err == nil {
 		s.log.Infof("User already exists with phone number '%s' (ID: %d), skipping save", phoneNumber, existingUser.ID)
 		tx.Commit()
-		return nil
+		return existingUser, nil
 	}
 
 	if !strings.Contains(err.Error(), "user not found") {
-		return fmt.Errorf("failed to check if user exists: %w", err)
+		return models.User{}, fmt.Errorf("failed to check if user exists: %w", err)
 	}
 
 	writeModel := models.UserWriteModel{
@@ -58,15 +58,15 @@ func (s *userServiceImpl) SaveUser(phoneNumber string, name *string) error {
 
 	savedUser, err := s.userRepository.Save(writeModel)
 	if err != nil {
-		return fmt.Errorf("failed to save new user: %w", err)
+		return models.User{}, fmt.Errorf("failed to save new user: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		return models.User{}, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	s.log.Infof("Successfully saved new user - ID: %d, phone: %s", savedUser.ID, savedUser.PhoneNumber)
-	return nil
+	return savedUser, nil
 }
 
 func (s *userServiceImpl) GetAllUsers() ([]models.User, error) {
@@ -81,27 +81,26 @@ func (s *userServiceImpl) GetAllUsers() ([]models.User, error) {
 	return users, nil
 }
 
-func (s *userServiceImpl) GetUserByID(id int) (*models.User, error) {
+func (s *userServiceImpl) GetUserByID(id int) (models.User, error) {
 	s.log.Debugf("Getting user by ID: %d", id)
 
 	user, err := s.userRepository.GetByID(id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user by ID: %w", err)
+		return models.User{}, fmt.Errorf("failed to get user by ID=%d: %w", id, err)
 	}
 
-	s.log.Debugf("Successfully retrieved user: %s", user.PhoneNumber)
-	return &user, nil
+	s.log.Debugf("Successfully retrieved user with id %d and phone number %s", user.ID, user.PhoneNumber)
+	return user, nil
 }
 
-func (s *userServiceImpl) GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
+func (s *userServiceImpl) GetUserByPhoneNumber(phoneNumber string) (models.User, error) {
 	s.log.Debugf("Getting user by phone number: %s", phoneNumber)
 
 	user, err := s.userRepository.GetByPhoneNumber(phoneNumber)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user by phone number: %w", err)
+		return models.User{}, fmt.Errorf("Failed to get user by phone number %s: %w", phoneNumber, err)
 	}
 
-	s.log.Debugf("Successfully retrieved user: %d", user.ID)
-	return &user, nil
+	s.log.Debugf("Successfully retrieved user with id %d and phone number %s", user.ID, user.PhoneNumber)
+	return user, nil
 }
-

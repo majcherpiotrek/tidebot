@@ -89,7 +89,6 @@ func RegisterWhatsappWebhook(e *echo.Echo, whatsappService WhatsAppService) {
 			}
 		}
 
-		// Respond with success (Twilio expects 200 OK)
 		logger.Info("📱 Responding with 200 OK")
 		return c.JSON(http.StatusOK, map[string]string{
 			"status":  "received",
@@ -97,12 +96,5 @@ func RegisterWhatsappWebhook(e *echo.Echo, whatsappService WhatsAppService) {
 		})
 	})
 
-	// Optional: Add a simple GET endpoint for testing
-	e.GET("/message", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]string{
-			"status":  "webhook_ready",
-			"message": "WhatsApp webhook endpoint is ready",
-			"method":  "POST /message for webhooks",
-		})
-	})
+	// TODO: implement status callback endpoint -- http://twilio.com/docs/whatsapp/sandbox#set-a-status-callback-url-to-track-message-delivery
 }

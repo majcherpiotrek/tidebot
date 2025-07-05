@@ -17,7 +17,6 @@ type WhatsAppService interface {
 	ProcessMessage(body string, from string, profileName *string) error
 	SendTideExtremesMessage(phoneNumber string, extremes []worldtides.Extreme, date string) error
 	SendDailyTideNotification(phoneNumber string, userName string, extremes []worldtides.Extreme) error
-	SendDailyTideNotificationAsText(phoneNumber string, userName string, extremes []worldtides.Extreme) error
 }
 
 type whatsappServiceImpl struct {
@@ -49,7 +48,7 @@ func (s *whatsappServiceImpl) ProcessMessage(body string, from string, profileNa
 	case "tides":
 		return s.handleTidesCommand(cleanPhoneNumber)
 	case "start":
-		return s.handleStartCommand(cleanPhoneNumber)
+		return s.handleStartCommand(cleanPhoneNumber, profileName)
 	case "stop":
 		return s.handleStopCommand(cleanPhoneNumber)
 	default:
@@ -91,7 +90,7 @@ func (s *whatsappServiceImpl) formatTideExtremesMessage(extremes []worldtides.Ex
 		// Convert time to Canary timezone
 		tideTimeInCanary := extreme.Time().In(canaryTZ)
 		tideTime := tideTimeInCanary.Format("15:04")
-		
+
 		var emoji string
 		var extraNewLine string
 		if extreme.IsHighTide() {
@@ -114,15 +113,17 @@ func (s *whatsappServiceImpl) formatTideExtremesMessage(extremes []worldtides.Ex
 func (s *whatsappServiceImpl) defaultMessageHandler(phoneNumber string, profileName *string) error {
 	s.log.Info("Received message, saving user")
 
-	existingUser, _ := s.userService.GetUserByPhoneNumber(phoneNumber)
-	isNewUser := true
-	if existingUser != nil {
-		isNewUser = false
-	}
+	_, err := s.userService.GetUserByPhoneNumber(phoneNumber)
+	isNewUser := false
 
-	err := s.userService.SaveUser(phoneNumber, profileName)
 	if err != nil {
-		return fmt.Errorf("failed to save user: %w", err)
+		_, err = s.userService.SaveUser(phoneNumber, profileName)
+
+		if err != nil {
+			return fmt.Errorf("Failed to save user with phone number %s: %w", phoneNumber, err)
+		}
+
+		isNewUser = true
 	}
 
 	err = s.sendWelcomeMessage(phoneNumber, profileName, isNewUser)
@@ -137,38 +138,26 @@ func (s *whatsappServiceImpl) defaultMessageHandler(phoneNumber string, profileN
 func (s *whatsappServiceImpl) handleTidesCommand(phoneNumber string) error {
 	s.log.Infof("Handling tides command for %s", phoneNumber)
 
-	// Get today's date
 	today := time.Now().Format("2006-01-02")
 
-	// Fetch tide extremes from WorldTides API
 	tidesResponse, err := s.worldTidesClient.GetTidalExtremesForDay(today)
 	if err != nil {
 		s.log.Errorf("Failed to fetch tide extremes for %s: %v", phoneNumber, err)
 		return s.whatsappClient.SendMessage("❌ Sorry, I couldn't fetch tide data right now. Please try again later.", phoneNumber)
 	}
 
-	// Send tide extremes using existing method
 	return s.SendTideExtremesMessage(phoneNumber, tidesResponse.Extremes, today)
 }
 
-func (s *whatsappServiceImpl) handleStartCommand(phoneNumber string) error {
+func (s *whatsappServiceImpl) handleStartCommand(phoneNumber string, profileName *string) error {
 	s.log.Infof("Handling start command for %s", phoneNumber)
 
-	// Auto-register user if not exists (idempotent)
-	err := s.userService.SaveUser(phoneNumber, nil)
+	user, err := s.userService.SaveUser(phoneNumber, profileName)
 	if err != nil {
 		s.log.Errorf("Failed to save user for phone %s: %v", phoneNumber, err)
 		return s.whatsappClient.SendMessage("❌ Sorry, there was an error. Please try again later.", phoneNumber)
 	}
 
-	// Get user to get ID
-	user, err := s.userService.GetUserByPhoneNumber(phoneNumber)
-	if err != nil || user == nil {
-		s.log.Errorf("Failed to get user after save for phone %s: %v", phoneNumber, err)
-		return s.whatsappClient.SendMessage("❌ Sorry, there was an error. Please try again later.", phoneNumber)
-	}
-
-	// Create/enable subscription
 	err = s.notificationSubscriptionRepository.CreateSubscription(user.ID)
 	if err != nil {
 		s.log.Errorf("Failed to create subscription for user %d: %v", user.ID, err)
@@ -190,14 +179,12 @@ Welcome aboard! 🌊`
 func (s *whatsappServiceImpl) handleStopCommand(phoneNumber string) error {
 	s.log.Infof("Handling stop command for %s", phoneNumber)
 
-	// Get user
 	user, err := s.userService.GetUserByPhoneNumber(phoneNumber)
-	if err != nil || user == nil {
+	if err != nil {
 		s.log.Warnf("User not found for phone %s, cannot stop notifications", phoneNumber)
 		return s.whatsappClient.SendMessage("🤷‍♂️ You don't have any active notifications to stop.\n\nSend *start* to enable tide notifications!", phoneNumber)
 	}
 
-	// Disable subscription
 	err = s.notificationSubscriptionRepository.DisableSubscription(user.ID)
 	if err != nil {
 		if strings.Contains(err.Error(), "no subscription found") {
@@ -218,16 +205,6 @@ Thanks for using TideBot! 🌊`
 
 	return s.whatsappClient.SendMessage(confirmationMessage, phoneNumber)
 }
-
-const AVAILABLE_COMMANDS = `
-*Available commands:*
-📱 Send *tides* - Get current tide info
-🔔 Send *start* - Enable daily notifications  
-🔕 Send *stop* - Disable notifications
-`
-
-const QUICK_REPLY_MESSAGE_TEMPLATE_SID = "HX6f156e3466407a835bef6505f85cf9b1"
-const DAILY_TIDE_NOTIFICATION_TEMPLATE_SID = "HX7161523078d66056973776cbf70f583a"
 
 func (s *whatsappServiceImpl) sendWelcomeMessage(phoneNumber string, profileName *string, isNewUser bool) error {
 	personalizedWelcome := "Hi!"
@@ -274,27 +251,70 @@ func (s *whatsappServiceImpl) sendQuickReplyMessage(phoneNumber string) {
 func (s *whatsappServiceImpl) SendDailyTideNotification(phoneNumber string, userName string, extremes []worldtides.Extreme) error {
 	// Check environment - use text message in development, template in production
 	env := os.Getenv("GO_ENV")
+
+	variables := s.buildDailyTidesNotificationVariables(userName, extremes)
+
 	if env == string(environment.EnvDevelopment) {
 		s.log.Infof("Using text message for daily notification in development environment")
-		return s.SendDailyTideNotificationAsText(phoneNumber, userName, extremes)
+		return s.sendDailyTideNotificationAsText(phoneNumber, variables)
 	}
 
 	s.log.Infof("Sending daily tide notification template to %s", phoneNumber)
 
-	// Ensure we have exactly 4 extremes for the template
 	if len(extremes) < 4 {
 		return fmt.Errorf("insufficient tide extremes: need 4, got %d", len(extremes))
 	}
 
-	// Load Atlantic/Canary timezone
-	canaryTZ, err := time.LoadLocation("Atlantic/Canary")
+	err := s.whatsappClient.SendTemplateWithVariables(DAILY_TIDE_NOTIFICATION_TEMPLATE_SID, variables, phoneNumber)
 	if err != nil {
-		s.log.Errorf("Failed to load Atlantic/Canary timezone: %v", err)
-		canaryTZ = time.UTC // Fallback to UTC
+		return fmt.Errorf("failed to send daily tide notification: %w", err)
 	}
 
-	// Get current date in Canary timezone for comparison
-	nowInCanary := time.Now().In(canaryTZ)
+	s.log.Infof("Successfully sent daily tide notification to %s", phoneNumber)
+	return nil
+}
+
+func (s *whatsappServiceImpl) sendDailyTideNotificationAsText(phoneNumber string, variables []string) error {
+	s.log.Infof("Sending daily tide notification as text to %s", phoneNumber)
+
+	if len(variables) != 9 {
+		return fmt.Errorf("9 variables required, got %d", len(variables))
+	}
+
+	// Build the message text
+	var message strings.Builder
+	message.WriteString(fmt.Sprintf("Hi %s!\n\n", variables[8]))
+	message.WriteString("Here is your daily tide report:\n\n")
+
+	// Process each extreme
+	for i, j := 0, 1; i < 7; i, j = i+2, j+1 {
+		tideType := variables[i]
+		tideInfo := variables[i+1]
+
+		message.WriteString(fmt.Sprintf("  %d. %s tide: %s\n", j, tideType, tideInfo))
+	}
+
+	message.WriteString("\nLocation: Risco del Paso, Fuerteventura\n\n")
+	message.WriteString("If you don't want to receive those notifications anymore, reply 'stop' to this message. Have a great day on the water!")
+
+	err := s.whatsappClient.SendMessage(message.String(), phoneNumber)
+	if err != nil {
+		return fmt.Errorf("failed to send daily tide notification as text: %w", err)
+	}
+
+	s.log.Infof("Successfully sent daily tide notification as text to %s", phoneNumber)
+	return nil
+}
+
+func (s *whatsappServiceImpl) buildDailyTidesNotificationVariables(userName string, extremes []worldtides.Extreme) []string {
+	if len(extremes) < 4 {
+		return []string{}
+	}
+
+	// TODO: correlate timezone with place when adding support for more location
+	tz := s.getTimezone()
+
+	nowInCanary := time.Now().In(tz)
 	todayInCanary := nowInCanary.Format("2006-01-02")
 
 	// Build variables for the template
@@ -304,100 +324,49 @@ func (s *whatsappServiceImpl) SendDailyTideNotification(phoneNumber string, user
 	variables[8] = userName
 
 	// Process each extreme ({{1}} through {{8}})
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		extreme := extremes[i]
-		
+
 		// Convert time to Canary timezone
-		tideTimeInCanary := extreme.Time().In(canaryTZ)
-		
+		tideTimeInCanary := extreme.Time().In(tz)
+
 		// Determine if this tide is on the next day (compared to Canary time)
-		dayPrefix := ""
+		daySuffix := ""
 		if tideTimeInCanary.Format("2006-01-02") != todayInCanary {
-			dayPrefix = " (+1 day)"
+			daySuffix = " (+1 day)"
 		}
 
-		// {{1}}, {{3}}, {{5}}, {{7}} - Tide type (High/Low)
+		// {{1}} - index 0, {{3}} - index 2, {{5}} - index 4, {{7}} - index 6 -- Tide type (High/Low)
 		if extreme.IsHighTide() {
 			variables[i*2] = "High"
 		} else {
 			variables[i*2] = "Low"
 		}
 
-		// {{2}}, {{4}}, {{6}}, {{8}} - Time and height in Canary timezone
+		// {{2}} - index 1, {{4}} - index 3, {{6}} - index 5, {{8}} - index 7 -- Time and height in Canary timezone
 		tideTime := tideTimeInCanary.Format("15:04")
-		variables[i*2+1] = fmt.Sprintf("%s%s (%.1fm)", tideTime, dayPrefix, extreme.Height)
+		variables[i*2+1] = fmt.Sprintf("%s%s (%.1fm)", tideTime, daySuffix, extreme.Height)
 	}
 
-	// Send template with variables
-	err = s.whatsappClient.SendTemplateWithVariables(DAILY_TIDE_NOTIFICATION_TEMPLATE_SID, variables, phoneNumber)
-	if err != nil {
-		return fmt.Errorf("failed to send daily tide notification: %w", err)
-	}
-
-	s.log.Infof("Successfully sent daily tide notification to %s", phoneNumber)
-	return nil
+	return variables
 }
 
-func (s *whatsappServiceImpl) SendDailyTideNotificationAsText(phoneNumber string, userName string, extremes []worldtides.Extreme) error {
-	s.log.Infof("Sending daily tide notification as text to %s", phoneNumber)
-
-	// Ensure we have exactly 4 extremes
-	if len(extremes) < 4 {
-		return fmt.Errorf("insufficient tide extremes: need 4, got %d", len(extremes))
-	}
-
-	// Load Atlantic/Canary timezone
+func (s *whatsappServiceImpl) getTimezone() *time.Location {
 	canaryTZ, err := time.LoadLocation("Atlantic/Canary")
 	if err != nil {
 		s.log.Errorf("Failed to load Atlantic/Canary timezone: %v", err)
 		canaryTZ = time.UTC // Fallback to UTC
 	}
 
-	// Get current date in Canary timezone for comparison
-	nowInCanary := time.Now().In(canaryTZ)
-	todayInCanary := nowInCanary.Format("2006-01-02")
-
-	// Build the message text
-	var message strings.Builder
-	message.WriteString(fmt.Sprintf("Hi %s!\n\n", userName))
-	message.WriteString("Here is your daily tide report:\n\n")
-
-	// Process each extreme
-	for i := 0; i < 4; i++ {
-		extreme := extremes[i]
-		
-		// Convert time to Canary timezone
-		tideTimeInCanary := extreme.Time().In(canaryTZ)
-		
-		// Determine if this tide is on the next day
-		dayPrefix := ""
-		if tideTimeInCanary.Format("2006-01-02") != todayInCanary {
-			dayPrefix = " (+1 day)"
-		}
-
-		// Format tide type
-		tideType := "Low"
-		if extreme.IsHighTide() {
-			tideType = "High"
-		}
-
-		// Format time and height
-		tideTime := tideTimeInCanary.Format("15:04")
-		tideInfo := fmt.Sprintf("%s%s (%.1fm)", tideTime, dayPrefix, extreme.Height)
-
-		// Add to message
-		message.WriteString(fmt.Sprintf("  %d. %s tide: %s\n", i+1, tideType, tideInfo))
-	}
-
-	message.WriteString("\nLocation: Risco del Paso, Fuerteventura\n\n")
-	message.WriteString("If you don't want to receive those notifications anymore, reply 'stop' to this message. Have a great day on the water!")
-
-	// Send as regular text message
-	err = s.whatsappClient.SendMessage(message.String(), phoneNumber)
-	if err != nil {
-		return fmt.Errorf("failed to send daily tide notification as text: %w", err)
-	}
-
-	s.log.Infof("Successfully sent daily tide notification as text to %s", phoneNumber)
-	return nil
+	return canaryTZ
 }
+
+const AVAILABLE_COMMANDS = `
+*Available commands:*
+📱 Send *tides* - Get current tide info
+🔔 Send *start* - Enable daily notifications  
+🔕 Send *stop* - Disable notifications
+`
+
+const QUICK_REPLY_MESSAGE_TEMPLATE_SID = "HX6f156e3466407a835bef6505f85cf9b1"
+const DAILY_TIDE_NOTIFICATION_TEMPLATE_SID = "HX7161523078d66056973776cbf70f583a"

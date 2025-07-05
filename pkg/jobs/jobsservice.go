@@ -13,7 +13,7 @@ import (
 
 type JobsService interface {
 	SendTideExtremesToAllUsers() error
-	SendDailyNotificationsV2() error
+	SendDailyNotificationsV2() (int, error)
 }
 
 type jobsServiceImpl struct {
@@ -54,11 +54,11 @@ func (j *jobsServiceImpl) SendTideExtremesToAllUsers() error {
 	}
 
 	j.log.Debugf("Received %d tide extremes for %s", len(tidesResponse.Extremes), today)
-	
+
 	// Debug log all extremes received
 	for i, extreme := range tidesResponse.Extremes {
 		localTime := extreme.Time().Format("2006-01-02 15:04:05 MST")
-		j.log.Debugf("Extreme %d: %s tide at %s (%.4fm) - Unix: %d, Date field: %s", 
+		j.log.Debugf("Extreme %d: %s tide at %s (%.4fm) - Unix: %d, Date field: %s",
 			i+1, extreme.Type, localTime, extreme.Height, extreme.Dt, extreme.Date)
 	}
 
@@ -104,7 +104,7 @@ func (j *jobsServiceImpl) SendTideExtremesToAllUsers() error {
 	return nil
 }
 
-func (j *jobsServiceImpl) SendDailyNotificationsV2() error {
+func (j *jobsServiceImpl) SendDailyNotificationsV2() (int, error) {
 	j.log.Info("Starting job: Send daily tide notifications (v2)")
 
 	// Get today's date
@@ -114,20 +114,20 @@ func (j *jobsServiceImpl) SendDailyNotificationsV2() error {
 	// Fetch tide extremes from WorldTides API
 	tidesResponse, err := j.worldTidesClient.GetTidalExtremesForDay(today)
 	if err != nil {
-		return fmt.Errorf("failed to fetch tide extremes: %w", err)
+		return 0, fmt.Errorf("failed to fetch tide extremes: %w", err)
 	}
 
 	j.log.Debugf("Received %d tide extremes for %s", len(tidesResponse.Extremes), today)
 
 	// Ensure we have enough extremes for the notification
 	if len(tidesResponse.Extremes) < 4 {
-		return fmt.Errorf("insufficient tide extremes for daily notification: need 4, got %d", len(tidesResponse.Extremes))
+		return 0, fmt.Errorf("insufficient tide extremes for daily notification: need 4, got %d", len(tidesResponse.Extremes))
 	}
 
 	// Get all users with enabled subscriptions
 	subscriptions, err := j.notificationSubscriptionRepository.GetEnabledSubscriptions()
 	if err != nil {
-		return fmt.Errorf("failed to get enabled subscriptions: %w", err)
+		return 0, fmt.Errorf("failed to get enabled subscriptions: %w", err)
 	}
 
 	j.log.Infof("Found %d users with enabled subscriptions to send daily notifications", len(subscriptions))
@@ -166,9 +166,8 @@ func (j *jobsServiceImpl) SendDailyNotificationsV2() error {
 	j.log.Infof("Daily notifications job completed: %d successful, %d errors out of %d subscribed users", successCount, errorCount, len(subscriptions))
 
 	if errorCount > 0 {
-		return fmt.Errorf("daily notifications job completed with %d errors out of %d subscribed users", errorCount, len(subscriptions))
+		return successCount, fmt.Errorf("daily notifications job completed with %d errors out of %d subscribed users", errorCount, len(subscriptions))
 	}
 
-	return nil
+	return successCount, nil
 }
-
