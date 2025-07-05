@@ -26,6 +26,7 @@ func (jc *JobsController) RegisterRoutes(e *echo.Echo) {
 	jobsGroup.Use(jc.apiKeyMiddleware)
 	
 	jobsGroup.POST("/send-tide-extremes", jc.SendTideExtremesToAllUsers)
+	jobsGroup.POST("/v2/send-daily-notifications", jc.SendDailyNotificationsV2)
 }
 
 func (jc *JobsController) apiKeyMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
@@ -67,5 +68,25 @@ func (jc *JobsController) SendTideExtremesToAllUsers(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"status":  "success",
 		"message": "Tide extremes sent to all users successfully",
+	})
+}
+
+func (jc *JobsController) SendDailyNotificationsV2(c echo.Context) error {
+	jc.log.Info("Received request to send daily tide notifications (v2)")
+
+	err := jc.jobsService.SendDailyNotificationsV2()
+	if err != nil {
+		jc.log.Errorf("Failed to send daily notifications: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"status":  "error",
+			"message": "Failed to send daily notifications",
+			"error":   err.Error(),
+		})
+	}
+
+	jc.log.Info("Successfully completed sending daily notifications")
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"status":  "success",
+		"message": "Daily notifications sent successfully",
 	})
 }
