@@ -345,7 +345,7 @@ func (s *whatsappServiceImpl) buildDailyTidesNotificationVariables(userName stri
 
 		// {{2}} - index 1, {{4}} - index 3, {{6}} - index 5, {{8}} - index 7 -- Time and height in Canary timezone
 		tideTime := tideTimeInCanary.Format("15:04")
-		variables[i*2+1] = fmt.Sprintf("%s%s (%.1fm)", tideTime, daySuffix, extreme.Height)
+		variables[i*2+1] = fmt.Sprintf("%s%s (%.2fm)", tideTime, daySuffix, extreme.Height)
 	}
 
 	return variables
