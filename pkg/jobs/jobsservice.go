@@ -48,7 +48,7 @@ func (j *jobsServiceImpl) SendTideExtremesToAllUsers() error {
 	j.log.Debugf("Fetching tide extremes for date: %s", today)
 
 	// Fetch tide extremes from WorldTides API
-	tidesResponse, err := j.worldTidesClient.GetTidalExtremesForDay(today)
+	tidesResponse, err := j.worldTidesClient.GetTides(today)
 	if err != nil {
 		return fmt.Errorf("failed to fetch tide extremes: %w", err)
 	}
@@ -112,7 +112,7 @@ func (j *jobsServiceImpl) SendDailyNotificationsV2() (int, error) {
 	j.log.Debugf("Fetching tide extremes for date: %s", today)
 
 	// Fetch tide extremes from WorldTides API
-	tidesResponse, err := j.worldTidesClient.GetTidalExtremesForDay(today)
+	tidesResponse, err := j.worldTidesClient.GetTides(today)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch tide extremes: %w", err)
 	}

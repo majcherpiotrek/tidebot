@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -20,15 +21,40 @@ const (
 )
 
 type WorldTidesClient interface {
-	GetTidalHeightsForDay(date string) (*WorldTidesResponse, error)
-	GetTidalExtremesForDay(date string) (*WorldTidesResponse, error)
-	GetTidalHeightsAndExtremesForDay(date string) (*WorldTidesResponse, error)
+	GetTides(date string) (*WorldTidesResponse, error)
+}
+
+type Cache struct {
+	mu   sync.RWMutex
+	data map[string]*WorldTidesResponse
+}
+
+func NewCache() Cache {
+	return Cache{
+		data: make(map[string]*WorldTidesResponse),
+	}
+}
+
+func (c *Cache) read(key string) (*WorldTidesResponse, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	value, exists := c.data[key]
+	return value, exists
+}
+
+func (c *Cache) write(key string, value *WorldTidesResponse) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.data[key] = value
 }
 
 type worldTidesClientImpl struct {
 	apiKey     string
 	httpClient *http.Client
 	log        echo.Logger
+	cache      Cache
 }
 
 func NewWorldTidesClient(apiKey string, log echo.Logger) WorldTidesClient {
@@ -37,28 +63,25 @@ func NewWorldTidesClient(apiKey string, log echo.Logger) WorldTidesClient {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		log: log,
+		log:   log,
+		cache: NewCache(),
 	}
 }
 
-func (c *worldTidesClientImpl) GetTidalHeightsForDay(date string) (*WorldTidesResponse, error) {
-	c.log.Debugf("Getting tidal heights for date: %s", date)
+func (c *worldTidesClientImpl) GetTides(date string) (*WorldTidesResponse, error) {
+	c.log.Debugf("Getting tides for date: %s", date)
 
-	params := url.Values{}
-	params.Set("key", c.apiKey)
-	params.Set("lat", strconv.FormatFloat(DefaultLatitude, 'f', -1, 64))
-	params.Set("lon", strconv.FormatFloat(DefaultLongitude, 'f', -1, 64))
-	params.Set("date", date)
-	params.Set("days", "1")
-	params.Set("heights", "")
-	params.Set("datum", "MLS") // Mean Sea Level -- https://www.worldtides.info/datums
-	params.Set("localtime", "")
+	cacheKey := fmt.Sprintf("tides:%s", date)
 
-	return c.makeRequest(params)
-}
+	c.log.Debugf("Cache key: %s", cacheKey)
+	c.log.Debugf("Cache contents: %+v", c.cache.data)
 
-func (c *worldTidesClientImpl) GetTidalExtremesForDay(date string) (*WorldTidesResponse, error) {
-	c.log.Debugf("Getting tidal extremes for date: %s", date)
+	cached, exists := c.cache.read(cacheKey)
+
+	if exists {
+		c.log.Debugf("Cache hit for tides request for %s", date)
+		return cached, nil
+	}
 
 	params := url.Values{}
 	params.Set("key", c.apiKey)
@@ -67,26 +90,19 @@ func (c *worldTidesClientImpl) GetTidalExtremesForDay(date string) (*WorldTidesR
 	params.Set("date", date)
 	params.Set("days", "1")
 	params.Set("extremes", "")
-	params.Set("datum", "MLS") // Mean Sea Level -- https://www.worldtides.info/datums
-	params.Set("localtime", "")
-
-	return c.makeRequest(params)
-}
-
-func (c *worldTidesClientImpl) GetTidalHeightsAndExtremesForDay(date string) (*WorldTidesResponse, error) {
-	c.log.Debugf("Getting tidal heights and extremes for date: %s", date)
-
-	params := url.Values{}
-	params.Set("key", c.apiKey)
-	params.Set("lat", strconv.FormatFloat(DefaultLatitude, 'f', -1, 64))
-	params.Set("lon", strconv.FormatFloat(DefaultLongitude, 'f', -1, 64))
-	params.Set("date", date)
-	params.Set("days", "1")
 	params.Set("heights", "")
 	params.Set("datum", "MLS") // Mean Sea Level -- https://www.worldtides.info/datums
 	params.Set("localtime", "")
 
-	return c.makeRequest(params)
+	response, err := c.makeRequest(params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	c.cache.write(cacheKey, response)
+
+	return response, nil
 }
 
 func (c *worldTidesClientImpl) makeRequest(params url.Values) (*WorldTidesResponse, error) {

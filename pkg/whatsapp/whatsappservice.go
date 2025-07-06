@@ -140,7 +140,7 @@ func (s *whatsappServiceImpl) handleTidesCommand(phoneNumber string) error {
 
 	today := time.Now().Format("2006-01-02")
 
-	tidesResponse, err := s.worldTidesClient.GetTidalExtremesForDay(today)
+	tidesResponse, err := s.worldTidesClient.GetTides(today)
 	if err != nil {
 		s.log.Errorf("Failed to fetch tide extremes for %s: %v", phoneNumber, err)
 		return s.whatsappClient.SendMessage("❌ Sorry, I couldn't fetch tide data right now. Please try again later.", phoneNumber)
