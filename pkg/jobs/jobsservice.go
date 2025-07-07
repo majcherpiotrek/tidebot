@@ -119,11 +119,6 @@ func (j *jobsServiceImpl) SendDailyNotificationsV2() (int, error) {
 
 	j.log.Debugf("Received %d tide extremes for %s", len(tidesResponse.Extremes), today)
 
-	// Ensure we have enough extremes for the notification
-	if len(tidesResponse.Extremes) < 4 {
-		return 0, fmt.Errorf("insufficient tide extremes for daily notification: need 4, got %d", len(tidesResponse.Extremes))
-	}
-
 	// Get all users with enabled subscriptions
 	subscriptions, err := j.notificationSubscriptionRepository.GetEnabledSubscriptions()
 	if err != nil {

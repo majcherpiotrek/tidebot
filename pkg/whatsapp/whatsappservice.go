@@ -307,7 +307,7 @@ func (s *whatsappServiceImpl) sendDailyTideNotificationAsText(phoneNumber string
 }
 
 func (s *whatsappServiceImpl) buildDailyTidesNotificationVariables(userName string, extremes []worldtides.Extreme) []string {
-	if len(extremes) < 4 {
+	if len(extremes) < 3 {
 		return []string{}
 	}
 
@@ -320,11 +320,15 @@ func (s *whatsappServiceImpl) buildDailyTidesNotificationVariables(userName stri
 	// Build variables for the template
 	variables := make([]string, 9) // 9 variables total
 
+	for i := range variables {
+		variables[i] = ""
+	}
+
 	// {{9}} - User name
 	variables[8] = userName
 
 	// Process each extreme ({{1}} through {{8}})
-	for i := range 4 {
+	for i := range extremes {
 		extreme := extremes[i]
 
 		// Convert time to Canary timezone
