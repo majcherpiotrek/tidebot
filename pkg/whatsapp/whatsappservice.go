@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"tidebot/pkg/common"
 	"tidebot/pkg/environment"
@@ -149,6 +150,12 @@ func (s *whatsappServiceImpl) defaultMessageHandler(phoneNumber string, profileN
 	return nil
 }
 
+type TidesResponseForDay struct {
+	Day           time.Time
+	TidesResponse *worldtides.WorldTidesResponse
+	Err           error
+}
+
 func (s *whatsappServiceImpl) handleTidesCommand(phoneNumber string, arguments []string) error {
 	s.log.Infof("Handling tides command for %s. Arguments: %v", phoneNumber, arguments)
 
@@ -160,21 +167,52 @@ func (s *whatsappServiceImpl) handleTidesCommand(phoneNumber string, arguments [
 		dates = append(dates, common.Today())
 	}
 
+	ch := make(chan TidesResponseForDay, len(dates))
+
 	for _, day := range dates {
-		tidesResponse, err := s.worldTidesClient.GetTides(day)
-		if err != nil {
-			s.log.Errorf("Failed to fetch tide extremes for %s: %v", phoneNumber, err)
-			return s.whatsappClient.SendMessage("❌ Sorry, I couldn't fetch tide data right now. Please try again later.", phoneNumber)
-		}
+		go s.getTidesWorker(day, ch)
+	}
 
-		err = s.SendTideExtremesMessage(phoneNumber, tidesResponse.Extremes, day)
+	var responses []TidesResponseForDay
+	for range dates {
+		res := <-ch
+		responses = append(responses, res)
+	}
 
-		if err != nil {
-			return err
+	sort.Slice(responses, func(i, j int) bool {
+		return responses[i].Day.Before(responses[j].Day)
+	})
+
+	for _, response := range responses {
+		if response.Err != nil {
+			s.whatsappClient.SendMessage(fmt.Sprintf("❌ Sorry, I couldn't fetch tide data for %s. Please try again later.", response.Day.Format("2006-01-02")), phoneNumber)
+		} else {
+			s.SendTideExtremesMessage(phoneNumber, response.TidesResponse.Extremes, response.Day)
 		}
 	}
 
 	return nil
+}
+
+func (s *whatsappServiceImpl) getTidesWorker(day time.Time, results chan<- TidesResponseForDay) {
+	tidesResponse, err := s.worldTidesClient.GetTides(day)
+	dayFormatted := day.Format("2006-01-02")
+
+	if err != nil {
+		wrappedError := fmt.Errorf("Failed to fetch tide extremes for day %s: %v", dayFormatted, err)
+		s.log.Errorf("%v", wrappedError)
+		results <- TidesResponseForDay{
+			Day:           day,
+			TidesResponse: nil,
+			Err:           wrappedError,
+		}
+	} else {
+		results <- TidesResponseForDay{
+			Day:           day,
+			TidesResponse: tidesResponse,
+			Err:           nil,
+		}
+	}
 }
 
 func (s *whatsappServiceImpl) parseTidesCommandArguments(args []string) []time.Time {
