@@ -21,7 +21,7 @@ const (
 )
 
 type WorldTidesClient interface {
-	GetTides(date string) (*WorldTidesResponse, error)
+	GetTides(date time.Time) (*WorldTidesResponse, error)
 }
 
 type Cache struct {
@@ -68,10 +68,11 @@ func NewWorldTidesClient(apiKey string, log echo.Logger) WorldTidesClient {
 	}
 }
 
-func (c *worldTidesClientImpl) GetTides(date string) (*WorldTidesResponse, error) {
-	c.log.Debugf("Getting tides for date: %s", date)
+func (c *worldTidesClientImpl) GetTides(date time.Time) (*WorldTidesResponse, error) {
+	dateFormatted := date.Format("2006-01-02")
+	c.log.Debugf("Getting tides for date: %s", dateFormatted)
 
-	cacheKey := fmt.Sprintf("tides:%s", date)
+	cacheKey := fmt.Sprintf("tides:%s", dateFormatted)
 
 	c.log.Debugf("Cache key: %s", cacheKey)
 	c.log.Debugf("Cache contents: %+v", c.cache.data)
@@ -79,7 +80,7 @@ func (c *worldTidesClientImpl) GetTides(date string) (*WorldTidesResponse, error
 	cached, exists := c.cache.read(cacheKey)
 
 	if exists {
-		c.log.Debugf("Cache hit for tides request for %s", date)
+		c.log.Debugf("Cache hit for tides request for %s", dateFormatted)
 		return cached, nil
 	}
 
@@ -87,7 +88,7 @@ func (c *worldTidesClientImpl) GetTides(date string) (*WorldTidesResponse, error
 	params.Set("key", c.apiKey)
 	params.Set("lat", strconv.FormatFloat(DefaultLatitude, 'f', -1, 64))
 	params.Set("lon", strconv.FormatFloat(DefaultLongitude, 'f', -1, 64))
-	params.Set("date", date)
+	params.Set("date", dateFormatted)
 	params.Set("days", "1")
 	params.Set("extremes", "")
 	params.Set("heights", "")

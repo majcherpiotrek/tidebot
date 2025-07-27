@@ -2,11 +2,11 @@ package jobs
 
 import (
 	"fmt"
+	"tidebot/pkg/common"
 	"tidebot/pkg/notifications/repositories"
 	"tidebot/pkg/users/services"
 	"tidebot/pkg/whatsapp"
 	"tidebot/pkg/worldtides"
-	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -43,8 +43,7 @@ func NewJobsService(
 func (j *jobsServiceImpl) SendTideExtremesToAllUsers() error {
 	j.log.Info("Starting job: Send tide extremes to all users")
 
-	// Get today's date
-	today := time.Now().Format("2006-01-02")
+	today := common.Today()
 	j.log.Debugf("Fetching tide extremes for date: %s", today)
 
 	// Fetch tide extremes from WorldTides API
@@ -107,8 +106,7 @@ func (j *jobsServiceImpl) SendTideExtremesToAllUsers() error {
 func (j *jobsServiceImpl) SendDailyNotificationsV2() (int, error) {
 	j.log.Info("Starting job: Send daily tide notifications (v2)")
 
-	// Get today's date
-	today := time.Now().Format("2006-01-02")
+	today := common.Today()
 	j.log.Debugf("Fetching tide extremes for date: %s", today)
 
 	// Fetch tide extremes from WorldTides API

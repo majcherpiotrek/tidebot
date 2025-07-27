@@ -18,7 +18,7 @@ import (
 
 type WhatsAppService interface {
 	ProcessMessage(body string, from string, profileName *string) error
-	SendTideExtremesMessage(phoneNumber string, extremes []worldtides.Extreme, date string) error
+	SendTideExtremesMessage(phoneNumber string, extremes []worldtides.Extreme, date time.Time) error
 	SendDailyTideNotification(phoneNumber string, userName string, extremes []worldtides.Extreme) error
 }
 
@@ -70,7 +70,7 @@ func (s *whatsappServiceImpl) ProcessMessage(body string, from string, profileNa
 	}
 }
 
-func (s *whatsappServiceImpl) SendTideExtremesMessage(phoneNumber string, extremes []worldtides.Extreme, date string) error {
+func (s *whatsappServiceImpl) SendTideExtremesMessage(phoneNumber string, extremes []worldtides.Extreme, date time.Time) error {
 	s.log.Debugf("Sending tide extremes message to %s for date %s", phoneNumber, date)
 
 	message := s.formatTideExtremesMessage(extremes, date)
@@ -84,13 +84,14 @@ func (s *whatsappServiceImpl) SendTideExtremesMessage(phoneNumber string, extrem
 	return nil
 }
 
-func (s *whatsappServiceImpl) formatTideExtremesMessage(extremes []worldtides.Extreme, date string) string {
+func (s *whatsappServiceImpl) formatTideExtremesMessage(extremes []worldtides.Extreme, date time.Time) string {
+	dateFormatted := date.Format("Monday, 2006-01-02")
 	if len(extremes) == 0 {
-		return fmt.Sprintf("🌊 *Tide Report for %s*\n\nNo tide data available for today.", date)
+		return fmt.Sprintf("🌊 *Tides for %s*\n\nNo tide data available for today.", dateFormatted)
 	}
 
 	var message strings.Builder
-	message.WriteString(fmt.Sprintf("🌊 *Tide Report for %s*\n\n", date))
+	message.WriteString(fmt.Sprintf("🌊 *Tides for %s*\n\n", dateFormatted))
 
 	// Load Atlantic/Canary timezone
 	canaryTZ, err := time.LoadLocation("Atlantic/Canary")
@@ -159,13 +160,7 @@ func (s *whatsappServiceImpl) handleTidesCommand(phoneNumber string, arguments [
 		dates = append(dates, common.Today())
 	}
 
-	var datesFormatted []string
-
-	for i := range dates {
-		datesFormatted = append(datesFormatted, dates[i].Format("2006-01-02"))
-	}
-
-	for _, day := range datesFormatted {
+	for _, day := range dates {
 		tidesResponse, err := s.worldTidesClient.GetTides(day)
 		if err != nil {
 			s.log.Errorf("Failed to fetch tide extremes for %s: %v", phoneNumber, err)
