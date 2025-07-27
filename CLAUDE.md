@@ -66,6 +66,8 @@ Environment files are loaded in order:
 - `cmd/environment.go` - Environment configuration management
 - `pkg/whatsapp/apiclient.go` - Twilio API client implementation
 - `pkg/whatsapp/webhookcontroller.go` - Webhook handlers for incoming messages
+- `pkg/whatsapp/whatsappservice.go` - WhatsApp command processing and message handling
+- `pkg/common/utils.go` - Common utilities including date parsing (supports multiple formats)
 
 ### Frontend Structure
 - All `.ts` files are automatically discovered and bundled
@@ -78,6 +80,15 @@ Single `users` table with:
 - `id` (PRIMARY KEY)
 - `phone_number` (UNIQUE, INDEXED) - WhatsApp phone numbers
 - `name`, `created_at`, `updated_at`
+
+### WhatsApp Commands
+- `tides` - Get tide information
+  - No arguments: today's tides
+  - Date arguments: specific date(s) tides
+  - `week`: next 7 days
+  - Multiple dates supported: `tides today tomorrow` or `tides today 24/12/2025`
+- `start` - Subscribe to daily tide notifications
+- `stop` - Unsubscribe from notifications
 
 ## Development Notes
 
