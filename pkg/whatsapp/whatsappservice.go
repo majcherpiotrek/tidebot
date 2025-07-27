@@ -3,7 +3,10 @@ package whatsapp
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"slices"
 	"strings"
+	"tidebot/pkg/common"
 	"tidebot/pkg/environment"
 	"tidebot/pkg/notifications/repositories"
 	"tidebot/pkg/users/services"
@@ -40,13 +43,23 @@ func NewWhatsAppService(userService services.UserService, notificationSubscripti
 func (s *whatsappServiceImpl) ProcessMessage(body string, from string, profileName *string) error {
 	s.log.Debugf("Processing WhatsApp message - body: %s, from: %s, profileName: %v", body, from, profileName)
 
-	// Handle commands
-	command := strings.ToLower(strings.TrimSpace(body))
 	cleanPhoneNumber := strings.TrimPrefix(from, "whatsapp:")
+
+	trimmedBody := strings.ToLower(strings.TrimSpace(body))
+
+	whitespaceRegexp := regexp.MustCompile(`\s+`)
+	commandWithArguments := whitespaceRegexp.Split(trimmedBody, -1)
+
+	if len(commandWithArguments) < 1 {
+		return s.defaultMessageHandler(cleanPhoneNumber, profileName)
+	}
+
+	command := commandWithArguments[0]
+	arguments := commandWithArguments[1:]
 
 	switch command {
 	case "tides":
-		return s.handleTidesCommand(cleanPhoneNumber)
+		return s.handleTidesCommand(cleanPhoneNumber, arguments)
 	case "start":
 		return s.handleStartCommand(cleanPhoneNumber, profileName)
 	case "stop":
@@ -135,18 +148,72 @@ func (s *whatsappServiceImpl) defaultMessageHandler(phoneNumber string, profileN
 	return nil
 }
 
-func (s *whatsappServiceImpl) handleTidesCommand(phoneNumber string) error {
-	s.log.Infof("Handling tides command for %s", phoneNumber)
+func (s *whatsappServiceImpl) handleTidesCommand(phoneNumber string, arguments []string) error {
+	s.log.Infof("Handling tides command for %s. Arguments: %v", phoneNumber, arguments)
 
-	today := time.Now().Format("2006-01-02")
+	var dates []time.Time
 
-	tidesResponse, err := s.worldTidesClient.GetTides(today)
-	if err != nil {
-		s.log.Errorf("Failed to fetch tide extremes for %s: %v", phoneNumber, err)
-		return s.whatsappClient.SendMessage("❌ Sorry, I couldn't fetch tide data right now. Please try again later.", phoneNumber)
+	if len(arguments) > 0 {
+		dates = s.parseTidesCommandArguments(arguments)
+	} else {
+		dates = append(dates, common.Today())
 	}
 
-	return s.SendTideExtremesMessage(phoneNumber, tidesResponse.Extremes, today)
+	var datesFormatted []string
+
+	for i := range dates {
+		datesFormatted = append(datesFormatted, dates[i].Format("2006-01-02"))
+	}
+
+	for _, day := range datesFormatted {
+		tidesResponse, err := s.worldTidesClient.GetTides(day)
+		if err != nil {
+			s.log.Errorf("Failed to fetch tide extremes for %s: %v", phoneNumber, err)
+			return s.whatsappClient.SendMessage("❌ Sorry, I couldn't fetch tide data right now. Please try again later.", phoneNumber)
+		}
+
+		err = s.SendTideExtremesMessage(phoneNumber, tidesResponse.Extremes, day)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *whatsappServiceImpl) parseTidesCommandArguments(args []string) []time.Time {
+	argsClean := slices.Clone(args)
+
+	for i := range argsClean {
+		argsClean[i] = strings.ToLower(argsClean[i])
+	}
+
+	containsWeekArg := slices.Contains(argsClean, "week")
+
+	if containsWeekArg {
+		week := make([]time.Time, 7)
+
+		for i := range week {
+			week[i] = common.Today().Add(time.Duration(i*24) * time.Hour)
+		}
+
+		return week
+	}
+
+	var dates []time.Time
+
+	for i := range argsClean {
+		date, err := common.ParseDate(argsClean[i])
+
+		if err != nil {
+			continue
+		}
+
+		dates = append(dates, date)
+	}
+
+	return dates
 }
 
 func (s *whatsappServiceImpl) handleStartCommand(phoneNumber string, profileName *string) error {
@@ -367,7 +434,8 @@ func (s *whatsappServiceImpl) getTimezone() *time.Location {
 
 const AVAILABLE_COMMANDS = `
 *Available commands:*
-📱 Send *tides* - Get current tide info
+📱 Send *tides* - Get today's tide info
+   Examples: _tides tomorrow_, _tides week_, _tides today tomorrow_, _tides today 24/12/2025_
 🔔 Send *start* - Enable daily notifications  
 🔕 Send *stop* - Disable notifications
 `
